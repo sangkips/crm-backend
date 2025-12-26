@@ -2,7 +2,6 @@ package service
 
 import (
 	"context"
-	"time"
 
 	"github.com/google/uuid"
 	"github.com/sangkips/investify-api/internal/domain/enum"
@@ -12,10 +11,11 @@ import (
 
 // DashboardService provides dashboard statistics
 type DashboardService struct {
-	orderRepo    repository.OrderRepository
-	purchaseRepo repository.PurchaseRepository
-	productRepo  repository.ProductRepository
-	customerRepo repository.CustomerRepository
+	orderRepo     repository.OrderRepository
+	purchaseRepo  repository.PurchaseRepository
+	productRepo   repository.ProductRepository
+	customerRepo  repository.CustomerRepository
+	analyticsRepo repository.AnalyticsRepository
 }
 
 // NewDashboardService creates a new dashboard service
@@ -24,12 +24,14 @@ func NewDashboardService(
 	purchaseRepo repository.PurchaseRepository,
 	productRepo repository.ProductRepository,
 	customerRepo repository.CustomerRepository,
+	analyticsRepo repository.AnalyticsRepository,
 ) *DashboardService {
 	return &DashboardService{
-		orderRepo:    orderRepo,
-		purchaseRepo: purchaseRepo,
-		productRepo:  productRepo,
-		customerRepo: customerRepo,
+		orderRepo:     orderRepo,
+		purchaseRepo:  purchaseRepo,
+		productRepo:   productRepo,
+		customerRepo:  customerRepo,
+		analyticsRepo: analyticsRepo,
 	}
 }
 
@@ -49,6 +51,9 @@ type DashboardStats struct {
 	CustomersGrowth   float64              `json:"customers_growth"`
 	DailySalesData    []DailySalesPoint    `json:"daily_sales_data"`
 	CategorySalesData []CategorySalesPoint `json:"category_sales_data"`
+	TopProducts       []SalesByProduct     `json:"top_products"`
+	SalesByCategory   []SalesByCategory    `json:"sales_by_category"`
+	TopCustomers      []SalesByCustomer    `json:"top_customers"`
 }
 
 // DailySalesPoint represents a daily sales data point
@@ -64,7 +69,33 @@ type CategorySalesPoint struct {
 	Amount   float64 `json:"amount"`
 }
 
-// GetDashboardStats returns dashboard statistics
+// SalesByProduct represents top selling products
+type SalesByProduct struct {
+	ProductID    uuid.UUID `json:"product_id"`
+	ProductName  string    `json:"product_name"`
+	ProductCode  string    `json:"product_code"`
+	QuantitySold int       `json:"quantity_sold"`
+	Revenue      float64   `json:"revenue"`
+}
+
+// SalesByCategory represents category performance
+type SalesByCategory struct {
+	CategoryID   uuid.UUID `json:"category_id"`
+	CategoryName string    `json:"category_name"`
+	TotalSales   float64   `json:"total_sales"`
+	OrderCount   int       `json:"order_count"`
+	Percentage   float64   `json:"percentage"`
+}
+
+// SalesByCustomer represents top customers
+type SalesByCustomer struct {
+	CustomerID   uuid.UUID `json:"customer_id"`
+	CustomerName string    `json:"customer_name"`
+	TotalSpent   float64   `json:"total_spent"`
+	OrderCount   int       `json:"order_count"`
+}
+
+// GetDashboardStats returns dashboard statistics using optimized SQL queries
 func (s *DashboardService) GetDashboardStats(ctx context.Context, userID uuid.UUID) (*DashboardStats, error) {
 	stats := &DashboardStats{}
 
@@ -126,31 +157,19 @@ func (s *DashboardService) GetDashboardStats(ctx context.Context, userID uuid.UU
 	}
 	stats.PendingOrders = pendingOrderCount
 
-	// Calculate total revenue from all completed orders
-	completeStatus := enum.OrderStatusComplete
-	completeOrderParams := &repository.OrderFilterParams{
-		Pagination:     &pagination.PaginationParams{Page: 1, PerPage: 1000},
-		Status:         &completeStatus,
-		SkipUserFilter: true,
-	}
-	completeOrders, _, err := s.orderRepo.List(ctx, userID, completeOrderParams)
+	// Get total revenue using optimized analytics query
+	totalRevenue, err := s.analyticsRepo.GetTotalRevenue(ctx)
 	if err != nil {
 		return nil, err
 	}
+	stats.TotalRevenue = totalRevenue
 
-	var totalRevenue int64
-	now := time.Now()
-	startOfMonth := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, now.Location())
-	var monthlyRevenue int64
-
-	for _, order := range completeOrders {
-		totalRevenue += order.Total
-		if order.OrderDate.After(startOfMonth) {
-			monthlyRevenue += order.Total
-		}
+	// Get monthly revenue using optimized analytics query
+	monthlyRevenue, err := s.analyticsRepo.GetMonthlyRevenue(ctx)
+	if err != nil {
+		return nil, err
 	}
-	stats.TotalRevenue = float64(totalRevenue) / 100
-	stats.MonthlyRevenue = float64(monthlyRevenue) / 100
+	stats.MonthlyRevenue = monthlyRevenue
 
 	// Purchases - show all purchases for admin dashboard
 	purchaseParams := &repository.PurchaseFilterParams{
@@ -163,50 +182,78 @@ func (s *DashboardService) GetDashboardStats(ctx context.Context, userID uuid.UU
 	}
 	stats.TotalPurchases = purchaseCount
 
-	// Pending purchases - show all pending purchases using List with status filter
+	// Pending purchases - show all pending purchases
 	pendingPurchaseStatus := enum.PurchaseStatusPending
 	pendingPurchaseParams := &repository.PurchaseFilterParams{
 		Pagination:     paginationParams,
 		Status:         &pendingPurchaseStatus,
 		SkipUserFilter: true,
 	}
-	pendingPurchases, pendingPurchaseCount, err := s.purchaseRepo.List(ctx, userID, pendingPurchaseParams)
+	_, pendingPurchaseCount, err := s.purchaseRepo.List(ctx, userID, pendingPurchaseParams)
 	if err != nil {
 		return nil, err
 	}
 	stats.PendingPurchases = pendingPurchaseCount
-	_ = pendingPurchases // Use the variable to avoid compiler warning
 
-	// Calculate daily sales for the last 7 days
-	// Fetch all orders from the last 7 days with a separate query
-	sevenDaysAgo := now.AddDate(0, 0, -7)
-	dailySalesParams := &repository.OrderFilterParams{
-		Pagination:     &pagination.PaginationParams{Page: 1, PerPage: 10000},
-		StartDate:      &sevenDaysAgo,
-		SkipUserFilter: true,
-	}
-	dailySalesOrders, _, err := s.orderRepo.List(ctx, userID, dailySalesParams)
+	// Get daily sales data using optimized analytics query
+	dailySales, err := s.analyticsRepo.GetDailySales(ctx, 7)
 	if err != nil {
 		return nil, err
 	}
-
-	stats.DailySalesData = make([]DailySalesPoint, 0, 7)
-	for i := 6; i >= 0; i-- {
-		date := now.AddDate(0, 0, -i)
-		dateStr := date.Format("2006-01-02")
-
-		dayRevenue := int64(0)
-		for _, order := range dailySalesOrders {
-			if order.OrderDate.Format("2006-01-02") == dateStr {
-				dayRevenue += order.Total
-			}
+	stats.DailySalesData = make([]DailySalesPoint, len(dailySales))
+	for i, ds := range dailySales {
+		stats.DailySalesData[i] = DailySalesPoint{
+			Date:    ds.Date.Format("Jan 02"),
+			Revenue: ds.Revenue,
+			Profit:  ds.Profit,
 		}
+	}
 
-		stats.DailySalesData = append(stats.DailySalesData, DailySalesPoint{
-			Date:    date.Format("Jan 02"),
-			Revenue: float64(dayRevenue) / 100,
-			Profit:  float64(dayRevenue) / 100 * 0.2, // Assume 20% profit margin
-		})
+	// Get top products using optimized analytics query
+	topProducts, err := s.analyticsRepo.GetTopProducts(ctx, 10)
+	if err != nil {
+		return nil, err
+	}
+	stats.TopProducts = make([]SalesByProduct, len(topProducts))
+	for i, p := range topProducts {
+		stats.TopProducts[i] = SalesByProduct{
+			ProductID:    p.ProductID,
+			ProductName:  p.ProductName,
+			ProductCode:  p.ProductCode,
+			QuantitySold: p.QuantitySold,
+			Revenue:      p.Revenue,
+		}
+	}
+
+	// Get sales by category using optimized analytics query
+	salesByCategory, err := s.analyticsRepo.GetSalesByCategory(ctx)
+	if err != nil {
+		return nil, err
+	}
+	stats.SalesByCategory = make([]SalesByCategory, len(salesByCategory))
+	for i, c := range salesByCategory {
+		stats.SalesByCategory[i] = SalesByCategory{
+			CategoryID:   c.CategoryID,
+			CategoryName: c.CategoryName,
+			TotalSales:   c.TotalSales,
+			OrderCount:   c.OrderCount,
+			Percentage:   c.Percentage,
+		}
+	}
+
+	// Get top customers using optimized analytics query
+	topCustomers, err := s.analyticsRepo.GetTopCustomers(ctx, 10)
+	if err != nil {
+		return nil, err
+	}
+	stats.TopCustomers = make([]SalesByCustomer, len(topCustomers))
+	for i, c := range topCustomers {
+		stats.TopCustomers[i] = SalesByCustomer{
+			CustomerID:   c.CustomerID,
+			CustomerName: c.CustomerName,
+			TotalSpent:   c.TotalSpent,
+			OrderCount:   c.OrderCount,
+		}
 	}
 
 	return stats, nil

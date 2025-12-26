@@ -63,6 +63,7 @@ func main() {
 	quotationDetailRepo := repository.NewQuotationDetailRepository(db)
 	settingsRepo := repository.NewSettingsRepository(db)
 	permissionRepo := repository.NewPermissionRepository(db)
+	analyticsRepo := repository.NewAnalyticsRepository(db)
 
 	// Initialize services
 	authService := service.NewAuthService(userRepo, roleRepo, jwtManager)
@@ -73,7 +74,7 @@ func main() {
 	purchaseService := service.NewPurchaseService(purchaseRepo, purchaseDetailRepo, productRepo, supplierRepo)
 	customerService := service.NewCustomerService(customerRepo)
 	supplierService := service.NewSupplierService(supplierRepo)
-	dashboardService := service.NewDashboardService(orderRepo, purchaseRepo, productRepo, customerRepo)
+	dashboardService := service.NewDashboardService(orderRepo, purchaseRepo, productRepo, customerRepo, analyticsRepo)
 	quotationService := service.NewQuotationService(quotationRepo, quotationDetailRepo, productRepo, customerRepo)
 	settingsService := service.NewSettingsService(settingsRepo)
 	userService := service.NewUserService(userRepo, roleRepo, permissionRepo)

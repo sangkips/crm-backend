@@ -110,6 +110,7 @@ func (r *orderRepository) GetWithDetails(ctx context.Context, id uuid.UUID) (*en
 	err := r.db.WithContext(ctx).
 		Preload("Customer").
 		Preload("Details.Product").
+		Preload("Details.Product.Category").
 		First(&order, "id = ?", id).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, nil
