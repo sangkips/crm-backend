@@ -96,8 +96,8 @@ func (r *userRepository) GetWithRoles(ctx context.Context, id uuid.UUID) (*entit
 
 func (r *userRepository) AssignRole(ctx context.Context, userID uuid.UUID, roleID uint) error {
 	return r.db.WithContext(ctx).Exec(
-		"INSERT INTO model_has_roles (model_id, role_id, model_type) VALUES (?, ?, ?) ON CONFLICT DO NOTHING",
-		userID, roleID, "App\\Models\\User",
+		"INSERT INTO model_has_roles (model_id, role_id) VALUES (?, ?) ON CONFLICT DO NOTHING",
+		userID, roleID,
 	).Error
 }
 

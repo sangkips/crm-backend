@@ -107,7 +107,7 @@ func (s *DashboardService) GetDashboardStats(ctx context.Context, userID uuid.UU
 		Pagination:     paginationParams,
 		SkipUserFilter: true,
 	}
-	orders, orderCount, err := s.orderRepo.List(ctx, userID, orderParams)
+	_, orderCount, err := s.orderRepo.List(ctx, userID, orderParams)
 	if err != nil {
 		return nil, err
 	}
@@ -178,13 +178,25 @@ func (s *DashboardService) GetDashboardStats(ctx context.Context, userID uuid.UU
 	_ = pendingPurchases // Use the variable to avoid compiler warning
 
 	// Calculate daily sales for the last 7 days
+	// Fetch all orders from the last 7 days with a separate query
+	sevenDaysAgo := now.AddDate(0, 0, -7)
+	dailySalesParams := &repository.OrderFilterParams{
+		Pagination:     &pagination.PaginationParams{Page: 1, PerPage: 10000},
+		StartDate:      &sevenDaysAgo,
+		SkipUserFilter: true,
+	}
+	dailySalesOrders, _, err := s.orderRepo.List(ctx, userID, dailySalesParams)
+	if err != nil {
+		return nil, err
+	}
+
 	stats.DailySalesData = make([]DailySalesPoint, 0, 7)
 	for i := 6; i >= 0; i-- {
 		date := now.AddDate(0, 0, -i)
 		dateStr := date.Format("2006-01-02")
 
 		dayRevenue := int64(0)
-		for _, order := range orders {
+		for _, order := range dailySalesOrders {
 			if order.OrderDate.Format("2006-01-02") == dateStr {
 				dayRevenue += order.Total
 			}

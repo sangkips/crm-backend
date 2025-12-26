@@ -62,6 +62,7 @@ func main() {
 	quotationRepo := repository.NewQuotationRepository(db)
 	quotationDetailRepo := repository.NewQuotationDetailRepository(db)
 	settingsRepo := repository.NewSettingsRepository(db)
+	permissionRepo := repository.NewPermissionRepository(db)
 
 	// Initialize services
 	authService := service.NewAuthService(userRepo, roleRepo, jwtManager)
@@ -75,6 +76,7 @@ func main() {
 	dashboardService := service.NewDashboardService(orderRepo, purchaseRepo, productRepo, customerRepo)
 	quotationService := service.NewQuotationService(quotationRepo, quotationDetailRepo, productRepo, customerRepo)
 	settingsService := service.NewSettingsService(settingsRepo)
+	userService := service.NewUserService(userRepo, roleRepo, permissionRepo)
 
 	// Initialize handlers
 	authHandler := handler.NewAuthHandler(authService)
@@ -88,6 +90,7 @@ func main() {
 	dashboardHandler := handler.NewDashboardHandler(dashboardService)
 	quotationHandler := handler.NewQuotationHandler(quotationService)
 	settingsHandler := handler.NewSettingsHandler(settingsService)
+	userHandler := handler.NewUserHandler(userService)
 
 	// Create Gin router
 	router := gin.New()
@@ -241,6 +244,30 @@ func main() {
 				reports.GET("/products", func(c *gin.Context) {
 					c.JSON(200, gin.H{"message": "Products report - Coming soon"})
 				})
+			}
+
+			// Users (Admin)
+			users := protected.Group("/users")
+			users.Use(middleware.RequirePermission("manage-users"))
+			{
+				users.GET("", userHandler.List)
+				users.GET("/:id", userHandler.Get)
+				users.PUT("/:id/roles", userHandler.UpdateRoles)
+				users.DELETE("/:id", userHandler.Delete)
+			}
+
+			// Roles (Admin)
+			roles := protected.Group("/roles")
+			roles.Use(middleware.RequirePermission("manage-users"))
+			{
+				roles.GET("", userHandler.ListRoles)
+			}
+
+			// Permissions (Admin)
+			permissions := protected.Group("/permissions")
+			permissions.Use(middleware.RequirePermission("manage-users"))
+			{
+				permissions.GET("", userHandler.ListPermissions)
 			}
 		}
 	}
