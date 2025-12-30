@@ -73,7 +73,7 @@ jobs:
         sed -i '/^investify-backend:/,/^[a-zA-Z]/ s/tag: ".*"/tag: "'"$IMAGE_TAG"'"/' environments/production/investify-values.yaml
 
         echo "Updated investifyApi image tag to: $IMAGE_TAG"
-        cat environments/production/investify-values.yaml | grep -A5 "investify-backend:"
+        # cat environments/production/investify-values.yaml | grep -A5 "investify-backend:"
     - name: Commit and push changes
       run: |
         cd infra
