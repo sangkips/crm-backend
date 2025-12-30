@@ -18,7 +18,10 @@ import (
 func NewPostgresDB(cfg *config.DatabaseConfig) (*gorm.DB, error) {
 	logLevel := logger.Info
 
-	db, err := gorm.Open(postgres.Open(cfg.DSN()), &gorm.Config{
+	db, err := gorm.Open(postgres.New(postgres.Config{
+		DSN: cfg.DSN(),
+		PreferSimpleProtocol: true, // disables implicit prepared statement usage
+	}), &gorm.Config{
 		Logger: logger.Default.LogMode(logLevel),
 	})
 	if err != nil {
