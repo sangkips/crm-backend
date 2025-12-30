@@ -70,10 +70,10 @@ jobs:
         IMAGE_TAG="${{ needs.build-and-push.outputs.image-tag }}"
 
         # Update ONLY the investifyApi image tag
-        sed -i '/^investifyApi:/,/^[a-zA-Z]/ s/tag: ".*"/tag: "'"$IMAGE_TAG"'"/' environments/production/investify-values.yaml
+        sed -i '/^investify-backend:/,/^[a-zA-Z]/ s/tag: ".*"/tag: "'"$IMAGE_TAG"'"/' environments/production/investify-values.yaml
 
         echo "Updated investifyApi image tag to: $IMAGE_TAG"
-        cat environments/production/investify-values.yaml | grep -A5 "investifyApi:"
+        cat environments/production/investify-values.yaml | grep -A5 "investify-backend:"
     - name: Commit and push changes
       run: |
         cd infra
@@ -83,13 +83,13 @@ jobs:
         # Pull latest changes to avoid conflicts with frontend CI
         git pull --rebase origin main || git pull origin main
 
-        git add environments/production/fleet-values.yaml
+        git add environments/production/investify-values.yaml
 
         # Only commit if there are changes
         if git diff --staged --quiet; then
           echo "No changes to commit"
         else
-          git commit -m "chore: update fleet backend image to ${{ needs.build-and-push.outputs.image-tag }}"
+          git commit -m "chore: update investify backend image to ${{ needs.build-and-push.outputs.image-tag }}"
           git push
           echo "Successfully pushed updated backend image tag"
         fi
