@@ -19,7 +19,7 @@ func NewPostgresDB(cfg *config.DatabaseConfig) (*gorm.DB, error) {
 	logLevel := logger.Info
 
 	db, err := gorm.Open(postgres.New(postgres.Config{
-		DSN: cfg.DSN(),
+		DSN:                  cfg.DSN(),
 		PreferSimpleProtocol: true, // disables implicit prepared statement usage
 	}), &gorm.Config{
 		Logger: logger.Default.LogMode(logLevel),
@@ -51,6 +51,7 @@ func AutoMigrate(db *gorm.DB) error {
 		&entity.User{},
 		&entity.Role{},
 		&entity.Permission{},
+		&entity.PasswordResetToken{},
 
 		// Product-related entities
 		&entity.Category{},

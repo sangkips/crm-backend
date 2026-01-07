@@ -1,8 +1,6 @@
 package handler
 
 import (
-	"net/http"
-
 	"github.com/gin-gonic/gin"
 	"github.com/sangkips/investify-api/internal/application/service"
 	"github.com/sangkips/investify-api/internal/presentation/http/dto/request"
@@ -281,13 +279,56 @@ func (h *AuthHandler) ChangePassword(c *gin.Context) {
 }
 
 // ForgotPassword handles forgot password request
+// @Summary Forgot Password
+// @Description Send password reset email
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Param request body request.ForgotPasswordRequest true "Forgot password request"
+// @Success 200 {object} response.APIResponse
+// @Router /auth/forgot-password [post]
 func (h *AuthHandler) ForgotPassword(c *gin.Context) {
-	// TODO: Implement password reset email sending
+	var req request.ForgotPasswordRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Invalid request body")
+		return
+	}
+
+	// Call the service (it handles email enumeration protection internally)
+	_ = h.authService.ForgotPassword(c.Request.Context(), &service.ForgotPasswordInput{
+		Email: req.Email,
+	})
+
+	// Always return success to prevent email enumeration
 	response.OK(c, "If the email exists, a reset link has been sent", nil)
 }
 
 // ResetPassword handles password reset
+// @Summary Reset Password
+// @Description Reset password using token
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Param request body request.ResetPasswordRequest true "Reset password request"
+// @Success 200 {object} response.APIResponse
+// @Failure 400 {object} response.APIResponse
+// @Router /auth/reset-password [post]
 func (h *AuthHandler) ResetPassword(c *gin.Context) {
-	// TODO: Implement password reset with token
-	c.JSON(http.StatusNotImplemented, gin.H{"message": "Not implemented yet"})
+	var req request.ResetPasswordRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Invalid request body")
+		return
+	}
+
+	err := h.authService.ResetPassword(c.Request.Context(), &service.ResetPasswordInput{
+		Email:       req.Email,
+		Token:       req.Token,
+		NewPassword: req.Password,
+	})
+	if err != nil {
+		response.Error(c, err)
+		return
+	}
+
+	response.OK(c, "Password reset successfully", nil)
 }

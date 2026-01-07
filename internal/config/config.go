@@ -14,6 +14,7 @@ type Config struct {
 	Storage   StorageConfig
 	CORS      CORSConfig
 	RateLimit RateLimitConfig
+	Email     EmailConfig
 }
 
 type AppConfig struct {
@@ -55,6 +56,16 @@ type RateLimitConfig struct {
 	Duration int
 }
 
+type EmailConfig struct {
+	SMTPHost     string
+	SMTPPort     int
+	SMTPUsername string
+	SMTPPassword string
+	FromName     string
+	FromEmail    string
+	FrontendURL  string
+}
+
 func Load() *Config {
 	viper.SetConfigFile(".env")
 	viper.AutomaticEnv()
@@ -84,6 +95,13 @@ func Load() *Config {
 	viper.SetDefault("CORS_ALLOWED_HEADERS", []string{})
 	viper.SetDefault("RATE_LIMIT_REQUESTS", 100)
 	viper.SetDefault("RATE_LIMIT_DURATION", 60)
+	viper.SetDefault("SMTP_HOST", "smtp.gmail.com")
+	viper.SetDefault("SMTP_PORT", 587)
+	viper.SetDefault("SMTP_USERNAME", "")
+	viper.SetDefault("SMTP_PASSWORD", "")
+	viper.SetDefault("EMAIL_FROM_NAME", "Investify")
+	viper.SetDefault("EMAIL_FROM_ADDRESS", "")
+	viper.SetDefault("FRONTEND_URL", "https://investify.autoscaleops.com")
 
 	return &Config{
 		App: AppConfig{
@@ -118,6 +136,15 @@ func Load() *Config {
 		RateLimit: RateLimitConfig{
 			Requests: viper.GetInt("RATE_LIMIT_REQUESTS"),
 			Duration: viper.GetInt("RATE_LIMIT_DURATION"),
+		},
+		Email: EmailConfig{
+			SMTPHost:     viper.GetString("SMTP_HOST"),
+			SMTPPort:     viper.GetInt("SMTP_PORT"),
+			SMTPUsername: viper.GetString("SMTP_USERNAME"),
+			SMTPPassword: viper.GetString("SMTP_PASSWORD"),
+			FromName:     viper.GetString("EMAIL_FROM_NAME"),
+			FromEmail:    viper.GetString("EMAIL_FROM_ADDRESS"),
+			FrontendURL:  viper.GetString("FRONTEND_URL"),
 		},
 	}
 }

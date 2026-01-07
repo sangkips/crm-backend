@@ -43,3 +43,12 @@ type PermissionRepository interface {
 	Delete(ctx context.Context, id uint) error
 	List(ctx context.Context) ([]entity.Permission, error)
 }
+
+// PasswordResetTokenRepository defines the interface for password reset token operations
+type PasswordResetTokenRepository interface {
+	Create(ctx context.Context, token *entity.PasswordResetToken) error
+	GetByToken(ctx context.Context, token string) (*entity.PasswordResetToken, error)
+	MarkAsUsed(ctx context.Context, token string) error
+	DeleteByEmail(ctx context.Context, email string) error
+	DeleteExpired(ctx context.Context) error
+}

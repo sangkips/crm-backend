@@ -11,6 +11,7 @@ import (
 	"github.com/sangkips/investify-api/internal/infrastructure/repository"
 	"github.com/sangkips/investify-api/internal/presentation/http/handler"
 	"github.com/sangkips/investify-api/internal/presentation/http/middleware"
+	"github.com/sangkips/investify-api/pkg/email"
 	"github.com/sangkips/investify-api/pkg/utils"
 )
 
@@ -64,9 +65,21 @@ func main() {
 	settingsRepo := repository.NewSettingsRepository(db)
 	permissionRepo := repository.NewPermissionRepository(db)
 	analyticsRepo := repository.NewAnalyticsRepository(db)
+	passwordResetRepo := repository.NewPasswordResetTokenRepository(db)
+
+	// Initialize email service
+	emailService := email.NewEmailService(email.EmailConfig{
+		SMTPHost:     cfg.Email.SMTPHost,
+		SMTPPort:     cfg.Email.SMTPPort,
+		SMTPUsername: cfg.Email.SMTPUsername,
+		SMTPPassword: cfg.Email.SMTPPassword,
+		FromName:     cfg.Email.FromName,
+		FromEmail:    cfg.Email.FromEmail,
+		FrontendURL:  cfg.Email.FrontendURL,
+	})
 
 	// Initialize services
-	authService := service.NewAuthService(userRepo, roleRepo, jwtManager)
+	authService := service.NewAuthService(userRepo, roleRepo, passwordResetRepo, jwtManager, emailService)
 	productService := service.NewProductService(productRepo, categoryRepo, unitRepo)
 	categoryService := service.NewCategoryService(categoryRepo)
 	unitService := service.NewUnitService(unitRepo)

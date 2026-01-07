@@ -2,28 +2,42 @@ package service
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"errors"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/sangkips/investify-api/internal/domain/entity"
 	"github.com/sangkips/investify-api/internal/domain/repository"
 	"github.com/sangkips/investify-api/pkg/apperror"
+	"github.com/sangkips/investify-api/pkg/email"
 	"github.com/sangkips/investify-api/pkg/utils"
 )
 
 // AuthService handles authentication-related operations
 type AuthService struct {
-	userRepo   repository.UserRepository
-	roleRepo   repository.RoleRepository
-	jwtManager *utils.JWTManager
+	userRepo          repository.UserRepository
+	roleRepo          repository.RoleRepository
+	passwordResetRepo repository.PasswordResetTokenRepository
+	jwtManager        *utils.JWTManager
+	emailService      *email.EmailService
 }
 
 // NewAuthService creates a new auth service
-func NewAuthService(userRepo repository.UserRepository, roleRepo repository.RoleRepository, jwtManager *utils.JWTManager) *AuthService {
+func NewAuthService(
+	userRepo repository.UserRepository,
+	roleRepo repository.RoleRepository,
+	passwordResetRepo repository.PasswordResetTokenRepository,
+	jwtManager *utils.JWTManager,
+	emailService *email.EmailService,
+) *AuthService {
 	return &AuthService{
-		userRepo:   userRepo,
-		roleRepo:   roleRepo,
-		jwtManager: jwtManager,
+		userRepo:          userRepo,
+		roleRepo:          roleRepo,
+		passwordResetRepo: passwordResetRepo,
+		jwtManager:        jwtManager,
+		emailService:      emailService,
 	}
 }
 
@@ -287,4 +301,115 @@ func (s *AuthService) UpdateProfile(ctx context.Context, input *UpdateProfileInp
 	}
 
 	return user, nil
+}
+
+// ForgotPasswordInput represents the forgot password input
+type ForgotPasswordInput struct {
+	Email string
+}
+
+// ForgotPassword initiates the password reset process
+func (s *AuthService) ForgotPassword(ctx context.Context, input *ForgotPasswordInput) error {
+	// Check if user exists (but don't reveal this to the caller)
+	user, err := s.userRepo.GetByEmail(ctx, input.Email)
+	if err != nil {
+		// Log error but don't return it to prevent email enumeration
+		return nil
+	}
+	if user == nil {
+		// User doesn't exist, but return nil to prevent email enumeration
+		return nil
+	}
+
+	// Delete any existing tokens for this email
+	_ = s.passwordResetRepo.DeleteByEmail(ctx, input.Email)
+
+	// Generate a secure random token
+	tokenBytes := make([]byte, 32)
+	if _, err := rand.Read(tokenBytes); err != nil {
+		return err
+	}
+	token := hex.EncodeToString(tokenBytes)
+
+	// Create the password reset token
+	resetToken := &entity.PasswordResetToken{
+		Email:     input.Email,
+		Token:     token,
+		ExpiresAt: time.Now().Add(1 * time.Hour),
+		Used:      false,
+	}
+
+	if err := s.passwordResetRepo.Create(ctx, resetToken); err != nil {
+		return err
+	}
+
+	// Send the password reset email
+	if err := s.emailService.SendPasswordResetEmail(input.Email, token); err != nil {
+		// Log error but still return success
+		// In production, you might want to queue this for retry
+		return err
+	}
+
+	return nil
+}
+
+// ResetPasswordInput represents the reset password input
+type ResetPasswordInput struct {
+	Email       string
+	Token       string
+	NewPassword string
+}
+
+// ResetPassword resets the user's password using a valid token
+func (s *AuthService) ResetPassword(ctx context.Context, input *ResetPasswordInput) error {
+	// Get the token from the repository
+	resetToken, err := s.passwordResetRepo.GetByToken(ctx, input.Token)
+	if err != nil {
+		return err
+	}
+	if resetToken == nil {
+		return apperror.NewBadRequestError("Invalid or expired reset token")
+	}
+
+	// Verify the token matches the email
+	if resetToken.Email != input.Email {
+		return apperror.NewBadRequestError("Invalid or expired reset token")
+	}
+
+	// Check if token is valid (not expired and not used)
+	if !resetToken.IsValid() {
+		return apperror.NewBadRequestError("Invalid or expired reset token")
+	}
+
+	// Get the user
+	user, err := s.userRepo.GetByEmail(ctx, input.Email)
+	if err != nil {
+		return err
+	}
+	if user == nil {
+		return apperror.NewBadRequestError("Invalid or expired reset token")
+	}
+
+	// Hash the new password
+	hashedPassword, err := utils.HashPassword(input.NewPassword)
+	if err != nil {
+		return err
+	}
+
+	// Update the user's password
+	user.Password = hashedPassword
+	if err := s.userRepo.Update(ctx, user); err != nil {
+		return err
+	}
+
+	// Mark the token as used
+	if err := s.passwordResetRepo.MarkAsUsed(ctx, input.Token); err != nil {
+		// Log error but don't fail - password was already changed
+		return nil
+	}
+
+	// Delete all tokens for this email (security measure)
+	_ = s.passwordResetRepo.DeleteByEmail(ctx, input.Email)
+
+	return nil
 }

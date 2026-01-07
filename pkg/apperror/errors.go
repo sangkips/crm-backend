@@ -70,6 +70,14 @@ func NewConflictError(message string) *AppError {
 	}
 }
 
+// NewBadRequestError creates a bad request error with a custom message
+func NewBadRequestError(message string) *AppError {
+	return &AppError{
+		Code:    http.StatusBadRequest,
+		Message: message,
+	}
+}
+
 // IsAppError checks if an error is an AppError
 func IsAppError(err error) bool {
 	var appErr *AppError
