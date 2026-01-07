@@ -161,10 +161,12 @@ func (s *EmailService) renderPasswordResetEmail(email, resetURL string) (string,
 		Email    string
 		ResetURL string
 		AppName  string
+		Year     int
 	}{
 		Email:    email,
 		ResetURL: resetURL,
 		AppName:  "Investify",
+		Year:     time.Now().Year(),
 	}
 
 	var buf bytes.Buffer
@@ -244,7 +246,7 @@ const passwordResetTemplate = `
                                 This email was sent by {{.AppName}}
                             </p>
                             <p style="color: #cbd5e0; font-size: 12px; margin: 0;">
-                                © {{.AppName}}. All rights reserved.
+                                © {{.Year}} {{.AppName}}. All rights reserved.
                             </p>
                         </td>
                     </tr>
