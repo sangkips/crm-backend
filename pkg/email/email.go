@@ -2,10 +2,13 @@ package email
 
 import (
 	"bytes"
+	"crypto/tls"
 	"fmt"
 	"html/template"
+	"net"
 	"net/smtp"
 	"net/url"
+	"time"
 )
 
 // EmailConfig holds SMTP configuration
@@ -52,16 +55,78 @@ func (s *EmailService) SendPasswordResetEmail(toEmail, token string) error {
 	return s.sendEmail(toEmail, message)
 }
 
-// sendEmail sends an email using SMTP
+// sendEmail sends an email using SMTP with timeout protection
 func (s *EmailService) sendEmail(to string, message []byte) error {
-	addr := fmt.Sprintf("%s:%d", s.config.SMTPHost, s.config.SMTPPort)
+	addr := net.JoinHostPort(s.config.SMTPHost, fmt.Sprintf("%d", s.config.SMTPPort))
 
-	// Gmail requires TLS authentication
-	auth := smtp.PlainAuth("", s.config.SMTPUsername, s.config.SMTPPassword, s.config.SMTPHost)
+	// Create a dialer with timeout to prevent indefinite blocking
+	dialer := &net.Dialer{
+		Timeout: 30 * time.Second,
+	}
 
-	err := smtp.SendMail(addr, auth, s.config.FromEmail, []string{to}, message)
+	// Connect with timeout
+	conn, err := dialer.Dial("tcp", addr)
 	if err != nil {
-		return fmt.Errorf("failed to send email: %w", err)
+		return fmt.Errorf("failed to connect to SMTP server: %w", err)
+	}
+	defer conn.Close()
+
+	// Set read/write deadlines to prevent hanging during SMTP conversation
+	deadline := time.Now().Add(60 * time.Second)
+	if err := conn.SetDeadline(deadline); err != nil {
+		return fmt.Errorf("failed to set connection deadline: %w", err)
+	}
+
+	// Create SMTP client
+	client, err := smtp.NewClient(conn, s.config.SMTPHost)
+	if err != nil {
+		return fmt.Errorf("failed to create SMTP client: %w", err)
+	}
+	defer client.Close()
+
+	// Start TLS for Gmail (required for port 587)
+	tlsConfig := &tls.Config{
+		ServerName: s.config.SMTPHost,
+	}
+	if err := client.StartTLS(tlsConfig); err != nil {
+		return fmt.Errorf("failed to start TLS: %w", err)
+	}
+
+	// Authenticate
+	auth := smtp.PlainAuth("", s.config.SMTPUsername, s.config.SMTPPassword, s.config.SMTPHost)
+	if err := client.Auth(auth); err != nil {
+		return fmt.Errorf("SMTP authentication failed: %w", err)
+	}
+
+	// Set sender
+	if err := client.Mail(s.config.FromEmail); err != nil {
+		return fmt.Errorf("failed to set sender: %w", err)
+	}
+
+	// Set recipient
+	if err := client.Rcpt(to); err != nil {
+		return fmt.Errorf("failed to set recipient: %w", err)
+	}
+
+	// Send the email body
+	wc, err := client.Data()
+	if err != nil {
+		return fmt.Errorf("failed to start email data: %w", err)
+	}
+
+	if _, err := wc.Write(message); err != nil {
+		wc.Close()
+		return fmt.Errorf("failed to write email body: %w", err)
+	}
+
+	if err := wc.Close(); err != nil {
+		return fmt.Errorf("failed to close email data: %w", err)
+	}
+
+	// Quit gracefully
+	if err := client.Quit(); err != nil {
+		// Log but don't fail - email was already sent
+		return nil
 	}
 
 	return nil
@@ -179,7 +244,7 @@ const passwordResetTemplate = `
                                 This email was sent by {{.AppName}}
                             </p>
                             <p style="color: #cbd5e0; font-size: 12px; margin: 0;">
-                                © 2026 {{.AppName}}. All rights reserved.
+                                © {{.AppName}}. All rights reserved.
                             </p>
                         </td>
                     </tr>
