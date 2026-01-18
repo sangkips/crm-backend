@@ -22,20 +22,6 @@ func NewProductHandler(productService *service.ProductService) *ProductHandler {
 }
 
 // List handles listing products (supports both page-based and cursor-based pagination)
-// @Summary List Products
-// @Description Get all products with pagination and filtering
-// @Tags products
-// @Security BearerAuth
-// @Produce json
-// @Param page query int false "Page number"
-// @Param per_page query int false "Items per page"
-// @Param limit query int false "Limit for cursor pagination"
-// @Param cursor query string false "Cursor for cursor-based pagination"
-// @Param search query string false "Search term"
-// @Param category_id query string false "Category ID"
-// @Param low_stock query bool false "Filter low stock items"
-// @Success 200 {object} response.APIResponse
-// @Router /products [get]
 func (h *ProductHandler) List(c *gin.Context) {
 	userID := GetUserID(c)
 	if userID == nil {
@@ -142,15 +128,6 @@ func (h *ProductHandler) listWithCursor(c *gin.Context, userID uuid.UUID, isSupe
 }
 
 // Create handles creating a product
-// @Summary Create Product
-// @Description Create a new product
-// @Tags products
-// @Security BearerAuth
-// @Accept json
-// @Produce json
-// @Param request body request.CreateProductRequest true "Product data"
-// @Success 201 {object} response.APIResponse
-// @Router /products [post]
 func (h *ProductHandler) Create(c *gin.Context) {
 	userID := GetUserID(c)
 	if userID == nil {
@@ -187,14 +164,6 @@ func (h *ProductHandler) Create(c *gin.Context) {
 }
 
 // Get handles getting a single product
-// @Summary Get Product
-// @Description Get a product by slug
-// @Tags products
-// @Security BearerAuth
-// @Produce json
-// @Param slug path string true "Product slug"
-// @Success 200 {object} response.APIResponse
-// @Router /products/{slug} [get]
 func (h *ProductHandler) Get(c *gin.Context) {
 	slug := c.Param("slug")
 	if slug == "" {
@@ -212,16 +181,6 @@ func (h *ProductHandler) Get(c *gin.Context) {
 }
 
 // Update handles updating a product
-// @Summary Update Product
-// @Description Update an existing product
-// @Tags products
-// @Security BearerAuth
-// @Accept json
-// @Produce json
-// @Param slug path string true "Product slug"
-// @Param request body request.UpdateProductRequest true "Product data"
-// @Success 200 {object} response.APIResponse
-// @Router /products/{slug} [put]
 func (h *ProductHandler) Update(c *gin.Context) {
 	userID := GetUserID(c)
 	if userID == nil {
@@ -267,14 +226,7 @@ func (h *ProductHandler) Update(c *gin.Context) {
 	response.OK(c, "Product updated successfully", product)
 }
 
-// Delete handles deleting a product
-// @Summary Delete Product
-// @Description Delete a product by slug
-// @Tags products
-// @Security BearerAuth
-// @Param slug path string true "Product slug"
-// @Success 204
-// @Router /products/{slug} [delete]
+// Delete handles deleting a product by slug
 func (h *ProductHandler) Delete(c *gin.Context) {
 	userID := GetUserID(c)
 	if userID == nil {
@@ -299,13 +251,6 @@ func (h *ProductHandler) Delete(c *gin.Context) {
 }
 
 // GetLowStock handles getting low stock products
-// @Summary Get Low Stock Products
-// @Description Get products with low stock
-// @Tags products
-// @Security BearerAuth
-// @Produce json
-// @Success 200 {object} response.APIResponse
-// @Router /products/low-stock [get]
 func (h *ProductHandler) GetLowStock(c *gin.Context) {
 	userID := GetUserID(c)
 	if userID == nil {

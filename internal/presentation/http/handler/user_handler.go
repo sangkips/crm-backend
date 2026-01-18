@@ -21,16 +21,6 @@ func NewUserHandler(userService *service.UserService) *UserHandler {
 }
 
 // List handles listing users with pagination
-// @Summary List Users
-// @Description Get a paginated list of users with their roles
-// @Tags users
-// @Security BearerAuth
-// @Produce json
-// @Param page query int false "Page number" default(1)
-// @Param per_page query int false "Items per page" default(15)
-// @Param search query string false "Search query"
-// @Success 200 {object} response.APIResponse
-// @Router /users [get]
 func (h *UserHandler) List(c *gin.Context) {
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	perPage, _ := strconv.Atoi(c.DefaultQuery("per_page", "15"))
@@ -76,14 +66,6 @@ func (h *UserHandler) List(c *gin.Context) {
 }
 
 // Get handles getting a single user by ID
-// @Summary Get User
-// @Description Get a user by ID with roles and permissions
-// @Tags users
-// @Security BearerAuth
-// @Produce json
-// @Param id path string true "User ID"
-// @Success 200 {object} response.APIResponse
-// @Router /users/{id} [get]
 func (h *UserHandler) Get(c *gin.Context) {
 	idStr := c.Param("id")
 	userID, err := uuid.Parse(idStr)
@@ -121,16 +103,6 @@ type UpdateRolesRequest struct {
 }
 
 // UpdateRoles handles updating user roles
-// @Summary Update User Roles
-// @Description Update the roles assigned to a user
-// @Tags users
-// @Security BearerAuth
-// @Accept json
-// @Produce json
-// @Param id path string true "User ID"
-// @Param request body UpdateRolesRequest true "Role IDs"
-// @Success 200 {object} response.APIResponse
-// @Router /users/{id}/roles [put]
 func (h *UserHandler) UpdateRoles(c *gin.Context) {
 	idStr := c.Param("id")
 	userID, err := uuid.Parse(idStr)
@@ -168,13 +140,6 @@ func (h *UserHandler) UpdateRoles(c *gin.Context) {
 }
 
 // Delete handles deleting a user
-// @Summary Delete User
-// @Description Soft delete a user
-// @Tags users
-// @Security BearerAuth
-// @Param id path string true "User ID"
-// @Success 200 {object} response.APIResponse
-// @Router /users/{id} [delete]
 func (h *UserHandler) Delete(c *gin.Context) {
 	idStr := c.Param("id")
 	userID, err := uuid.Parse(idStr)
@@ -199,13 +164,6 @@ func (h *UserHandler) Delete(c *gin.Context) {
 }
 
 // ListRoles handles listing all available roles
-// @Summary List Roles
-// @Description Get all available roles with their permissions
-// @Tags users
-// @Security BearerAuth
-// @Produce json
-// @Success 200 {object} response.APIResponse
-// @Router /roles [get]
 func (h *UserHandler) ListRoles(c *gin.Context) {
 	roles, err := h.userService.ListRoles(c.Request.Context())
 	if err != nil {
@@ -219,13 +177,6 @@ func (h *UserHandler) ListRoles(c *gin.Context) {
 }
 
 // ListPermissions handles listing all available permissions
-// @Summary List Permissions
-// @Description Get all available permissions
-// @Tags users
-// @Security BearerAuth
-// @Produce json
-// @Success 200 {object} response.APIResponse
-// @Router /permissions [get]
 func (h *UserHandler) ListPermissions(c *gin.Context) {
 	permissions, err := h.userService.ListPermissions(c.Request.Context())
 	if err != nil {

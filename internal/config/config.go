@@ -15,6 +15,7 @@ type Config struct {
 	CORS      CORSConfig
 	RateLimit RateLimitConfig
 	Email     EmailConfig
+	OAuth     OAuthConfig
 }
 
 type AppConfig struct {
@@ -66,6 +67,14 @@ type EmailConfig struct {
 	FrontendURL  string
 }
 
+type OAuthConfig struct {
+	GoogleClientID     string
+	GoogleClientSecret string
+	GoogleRedirectURL  string
+	FrontendSuccessURL string
+	FrontendErrorURL   string
+}
+
 func Load() *Config {
 	viper.SetConfigFile(".env")
 	viper.AutomaticEnv()
@@ -102,6 +111,11 @@ func Load() *Config {
 	viper.SetDefault("EMAIL_FROM_NAME", "Investify")
 	viper.SetDefault("EMAIL_FROM_ADDRESS", "")
 	viper.SetDefault("FRONTEND_URL", "https://investify.autoscaleops.com")
+	viper.SetDefault("GOOGLE_CLIENT_ID", "")
+	viper.SetDefault("GOOGLE_CLIENT_SECRET", "")
+	viper.SetDefault("GOOGLE_REDIRECT_URL", "http://localhost:8080/api/v1/auth/google/callback")
+	viper.SetDefault("OAUTH_FRONTEND_SUCCESS_URL", "http://localhost:3000/dashboard")
+	viper.SetDefault("OAUTH_FRONTEND_ERROR_URL", "http://localhost:3000/login")
 
 	return &Config{
 		App: AppConfig{
@@ -145,6 +159,13 @@ func Load() *Config {
 			FromName:     viper.GetString("EMAIL_FROM_NAME"),
 			FromEmail:    viper.GetString("EMAIL_FROM_ADDRESS"),
 			FrontendURL:  viper.GetString("FRONTEND_URL"),
+		},
+		OAuth: OAuthConfig{
+			GoogleClientID:     viper.GetString("GOOGLE_CLIENT_ID"),
+			GoogleClientSecret: viper.GetString("GOOGLE_CLIENT_SECRET"),
+			GoogleRedirectURL:  viper.GetString("GOOGLE_REDIRECT_URL"),
+			FrontendSuccessURL: viper.GetString("OAUTH_FRONTEND_SUCCESS_URL"),
+			FrontendErrorURL:   viper.GetString("OAUTH_FRONTEND_ERROR_URL"),
 		},
 	}
 }

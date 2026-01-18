@@ -17,13 +17,6 @@ func NewSettingsHandler(settingsService *service.SettingsService) *SettingsHandl
 }
 
 // GetSettings retrieves user settings
-// @Summary Get Settings
-// @Description Get current user's settings
-// @Tags settings
-// @Security BearerAuth
-// @Produce json
-// @Success 200 {object} response.APIResponse
-// @Router /settings [get]
 func (h *SettingsHandler) GetSettings(c *gin.Context) {
 	userID := GetUserID(c)
 	if userID == nil {
@@ -41,14 +34,6 @@ func (h *SettingsHandler) GetSettings(c *gin.Context) {
 }
 
 // UpdateSettings updates user settings
-// @Summary Update Settings
-// @Description Update current user's settings
-// @Tags settings
-// @Security BearerAuth
-// @Accept json
-// @Produce json
-// @Success 200 {object} response.APIResponse
-// @Router /settings [put]
 func (h *SettingsHandler) UpdateSettings(c *gin.Context) {
 	userID := GetUserID(c)
 	if userID == nil {

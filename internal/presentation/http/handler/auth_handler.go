@@ -1,6 +1,10 @@
 package handler
 
 import (
+	"crypto/rand"
+	"encoding/hex"
+	"net/url"
+
 	"github.com/gin-gonic/gin"
 	"github.com/sangkips/investify-api/internal/application/service"
 	"github.com/sangkips/investify-api/internal/presentation/http/dto/request"
@@ -19,15 +23,6 @@ func NewAuthHandler(authService *service.AuthService) *AuthHandler {
 }
 
 // Login handles user login
-// @Summary Login
-// @Description Authenticate user and return tokens
-// @Tags auth
-// @Accept json
-// @Produce json
-// @Param request body request.LoginRequest true "Login credentials"
-// @Success 200 {object} response.APIResponse
-// @Failure 401 {object} response.APIResponse
-// @Router /auth/login [post]
 func (h *AuthHandler) Login(c *gin.Context) {
 	var req request.LoginRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -63,15 +58,6 @@ func (h *AuthHandler) Login(c *gin.Context) {
 }
 
 // Register handles user registration
-// @Summary Register
-// @Description Create a new user account
-// @Tags auth
-// @Accept json
-// @Produce json
-// @Param request body request.RegisterRequest true "Registration data"
-// @Success 201 {object} response.APIResponse
-// @Failure 400 {object} response.APIResponse
-// @Router /auth/register [post]
 func (h *AuthHandler) Register(c *gin.Context) {
 	var req request.RegisterRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -102,15 +88,6 @@ func (h *AuthHandler) Register(c *gin.Context) {
 }
 
 // RefreshToken handles token refresh
-// @Summary Refresh Token
-// @Description Refresh access token using refresh token
-// @Tags auth
-// @Accept json
-// @Produce json
-// @Param request body request.RefreshTokenRequest true "Refresh token"
-// @Success 200 {object} response.APIResponse
-// @Failure 401 {object} response.APIResponse
-// @Router /auth/refresh [post]
 func (h *AuthHandler) RefreshToken(c *gin.Context) {
 	var req request.RefreshTokenRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -132,12 +109,6 @@ func (h *AuthHandler) RefreshToken(c *gin.Context) {
 }
 
 // Logout handles user logout
-// @Summary Logout
-// @Description Logout user (client should discard tokens)
-// @Tags auth
-// @Security BearerAuth
-// @Success 200 {object} response.APIResponse
-// @Router /auth/logout [post]
 func (h *AuthHandler) Logout(c *gin.Context) {
 	// JWT is stateless, so we just return success
 	// Client should discard the tokens
@@ -145,13 +116,6 @@ func (h *AuthHandler) Logout(c *gin.Context) {
 }
 
 // GetProfile handles fetching current user profile
-// @Summary Get Profile
-// @Description Get current user's profile
-// @Tags auth
-// @Security BearerAuth
-// @Produce json
-// @Success 200 {object} response.APIResponse
-// @Router /profile [get]
 func (h *AuthHandler) GetProfile(c *gin.Context) {
 	userID := GetUserID(c)
 	if userID == nil {
@@ -186,14 +150,6 @@ func (h *AuthHandler) GetProfile(c *gin.Context) {
 }
 
 // UpdateProfile handles updating user profile
-// @Summary Update Profile
-// @Description Update current user's profile
-// @Tags auth
-// @Security BearerAuth
-// @Accept json
-// @Produce json
-// @Success 200 {object} response.APIResponse
-// @Router /profile [put]
 func (h *AuthHandler) UpdateProfile(c *gin.Context) {
 	userID := GetUserID(c)
 	if userID == nil {
@@ -238,16 +194,6 @@ func (h *AuthHandler) UpdateProfile(c *gin.Context) {
 }
 
 // ChangePassword handles password change
-// @Summary Change Password
-// @Description Change current user's password
-// @Tags auth
-// @Security BearerAuth
-// @Accept json
-// @Produce json
-// @Param request body request.ChangePasswordRequest true "Password change data"
-// @Success 200 {object} response.APIResponse
-// @Failure 400 {object} response.APIResponse
-// @Router /profile/password [put]
 func (h *AuthHandler) ChangePassword(c *gin.Context) {
 	userID := GetUserID(c)
 	if userID == nil {
@@ -279,14 +225,6 @@ func (h *AuthHandler) ChangePassword(c *gin.Context) {
 }
 
 // ForgotPassword handles forgot password request
-// @Summary Forgot Password
-// @Description Send password reset email
-// @Tags auth
-// @Accept json
-// @Produce json
-// @Param request body request.ForgotPasswordRequest true "Forgot password request"
-// @Success 200 {object} response.APIResponse
-// @Router /auth/forgot-password [post]
 func (h *AuthHandler) ForgotPassword(c *gin.Context) {
 	var req request.ForgotPasswordRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -304,15 +242,6 @@ func (h *AuthHandler) ForgotPassword(c *gin.Context) {
 }
 
 // ResetPassword handles password reset
-// @Summary Reset Password
-// @Description Reset password using token
-// @Tags auth
-// @Accept json
-// @Produce json
-// @Param request body request.ResetPasswordRequest true "Reset password request"
-// @Success 200 {object} response.APIResponse
-// @Failure 400 {object} response.APIResponse
-// @Router /auth/reset-password [post]
 func (h *AuthHandler) ResetPassword(c *gin.Context) {
 	var req request.ResetPasswordRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -331,4 +260,92 @@ func (h *AuthHandler) ResetPassword(c *gin.Context) {
 	}
 
 	response.OK(c, "Password reset successfully", nil)
+}
+
+// GoogleAuth initiates Google OAuth flow and redirect to Google OAuth consent screen
+func (h *AuthHandler) GoogleAuth(c *gin.Context) {
+	// Generate a random state parameter to prevent CSRF
+	stateBytes := make([]byte, 16)
+	if _, err := rand.Read(stateBytes); err != nil {
+		response.InternalServerError(c, "Failed to generate state")
+		return
+	}
+	state := hex.EncodeToString(stateBytes)
+
+	// Store state in cookie for validation during callback
+	c.SetCookie("oauth_state", state, 600, "/", "", false, true)
+
+	authURL, err := h.authService.GetGoogleAuthURL(state)
+	if err != nil {
+		response.BadRequest(c, "Google OAuth is not configured")
+		return
+	}
+
+	c.Redirect(302, authURL)
+}
+
+// GoogleCallback handles Google OAuth callback and authenticate user
+func (h *AuthHandler) GoogleCallback(c *gin.Context) {
+	successURL, errorURL := h.authService.GetGoogleFrontendURLs()
+
+	// Helper function to redirect to error page
+	redirectError := func(msg string) {
+		errorURLParsed, _ := url.Parse(errorURL)
+		q := errorURLParsed.Query()
+		q.Set("error", msg)
+		errorURLParsed.RawQuery = q.Encode()
+		c.Redirect(302, errorURLParsed.String())
+	}
+
+	// Validate state parameter
+	storedState, err := c.Cookie("oauth_state")
+	if err != nil {
+		redirectError("Invalid state")
+		return
+	}
+
+	receivedState := c.Query("state")
+	if storedState != receivedState {
+		redirectError("Invalid state")
+		return
+	}
+
+	// Clear the state cookie
+	c.SetCookie("oauth_state", "", -1, "/", "", false, true)
+
+	// Get authorization code
+	code := c.Query("code")
+	if code == "" {
+		redirectError("No authorization code received")
+		return
+	}
+
+	// Check for error from Google
+	if errMsg := c.Query("error"); errMsg != "" {
+		redirectError(errMsg)
+		return
+	}
+
+	// Authenticate with Google
+	output, err := h.authService.GoogleAuth(c.Request.Context(), &service.GoogleAuthInput{
+		Code:  code,
+		State: receivedState,
+	})
+	if err != nil {
+		redirectError("Authentication failed")
+		return
+	}
+
+	// Redirect to frontend with tokens
+	successURLParsed, _ := url.Parse(successURL)
+	q := successURLParsed.Query()
+	q.Set("access_token", output.AccessToken)
+	q.Set("refresh_token", output.RefreshToken)
+	q.Set("token_type", "Bearer")
+	if output.IsNewUser {
+		q.Set("is_new_user", "true")
+	}
+	successURLParsed.RawQuery = q.Encode()
+
+	c.Redirect(302, successURLParsed.String())
 }

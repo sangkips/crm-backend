@@ -41,18 +41,7 @@ type QuotationItemRequest struct {
 	UnitPrice float64 `json:"unit_price" binding:"required"`
 }
 
-// List handles listing quotations
-// @Summary List Quotations
-// @Description Get all quotations with pagination and filtering
-// @Tags quotations
-// @Security BearerAuth
-// @Produce json
-// @Param page query int false "Page number"
-// @Param per_page query int false "Items per page"
-// @Param search query string false "Search term"
-// @Param status query int false "Status filter"
-// @Success 200 {object} response.APIResponse
-// @Router /quotations [get]
+// List handles listing quotations with pagination and filtering
 func (h *QuotationHandler) List(c *gin.Context) {
 	userID := GetUserID(c)
 	if userID == nil {
@@ -104,14 +93,6 @@ func (h *QuotationHandler) List(c *gin.Context) {
 }
 
 // Get handles getting a single quotation
-// @Summary Get Quotation
-// @Description Get a quotation by ID
-// @Tags quotations
-// @Security BearerAuth
-// @Produce json
-// @Param id path string true "Quotation ID"
-// @Success 200 {object} response.APIResponse
-// @Router /quotations/{id} [get]
 func (h *QuotationHandler) Get(c *gin.Context) {
 	id, err := uuid.Parse(c.Param("id"))
 	if err != nil {
@@ -129,15 +110,6 @@ func (h *QuotationHandler) Get(c *gin.Context) {
 }
 
 // Create handles creating a quotation
-// @Summary Create Quotation
-// @Description Create a new quotation
-// @Tags quotations
-// @Security BearerAuth
-// @Accept json
-// @Produce json
-// @Param request body CreateQuotationRequest true "Quotation data"
-// @Success 201 {object} response.APIResponse
-// @Router /quotations [post]
 func (h *QuotationHandler) Create(c *gin.Context) {
 	userID := GetUserID(c)
 	if userID == nil {
@@ -204,16 +176,6 @@ func (h *QuotationHandler) Create(c *gin.Context) {
 }
 
 // Update handles updating a quotation
-// @Summary Update Quotation
-// @Description Update an existing quotation
-// @Tags quotations
-// @Security BearerAuth
-// @Accept json
-// @Produce json
-// @Param id path string true "Quotation ID"
-// @Param request body CreateQuotationRequest true "Quotation data"
-// @Success 200 {object} response.APIResponse
-// @Router /quotations/{id} [put]
 func (h *QuotationHandler) Update(c *gin.Context) {
 	userID := GetUserID(c)
 	if userID == nil {
@@ -289,14 +251,7 @@ func (h *QuotationHandler) Update(c *gin.Context) {
 	response.OK(c, "Quotation updated successfully", quotation)
 }
 
-// Delete handles deleting a quotation
-// @Summary Delete Quotation
-// @Description Delete a quotation by ID
-// @Tags quotations
-// @Security BearerAuth
-// @Param id path string true "Quotation ID"
-// @Success 204
-// @Router /quotations/{id} [delete]
+// Delete handles deleting a quotation by ID
 func (h *QuotationHandler) Delete(c *gin.Context) {
 	userID := GetUserID(c)
 	if userID == nil {

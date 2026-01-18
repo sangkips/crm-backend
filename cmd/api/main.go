@@ -12,6 +12,7 @@ import (
 	"github.com/sangkips/investify-api/internal/presentation/http/handler"
 	"github.com/sangkips/investify-api/internal/presentation/http/middleware"
 	"github.com/sangkips/investify-api/pkg/email"
+	"github.com/sangkips/investify-api/pkg/oauth"
 	"github.com/sangkips/investify-api/pkg/utils"
 )
 
@@ -78,8 +79,17 @@ func main() {
 		FrontendURL:  cfg.Email.FrontendURL,
 	})
 
+	// Initialize Google OAuth service
+	googleOAuthService := oauth.NewGoogleOAuthService(oauth.GoogleOAuthConfig{
+		ClientID:           cfg.OAuth.GoogleClientID,
+		ClientSecret:       cfg.OAuth.GoogleClientSecret,
+		RedirectURL:        cfg.OAuth.GoogleRedirectURL,
+		FrontendSuccessURL: cfg.OAuth.FrontendSuccessURL,
+		FrontendErrorURL:   cfg.OAuth.FrontendErrorURL,
+	})
+
 	// Initialize services
-	authService := service.NewAuthService(userRepo, roleRepo, passwordResetRepo, jwtManager, emailService)
+	authService := service.NewAuthService(userRepo, roleRepo, passwordResetRepo, jwtManager, emailService, googleOAuthService)
 	productService := service.NewProductService(productRepo, categoryRepo, unitRepo)
 	categoryService := service.NewCategoryService(categoryRepo)
 	unitService := service.NewUnitService(unitRepo)
@@ -133,6 +143,9 @@ func main() {
 			auth.POST("/refresh", authHandler.RefreshToken)
 			auth.POST("/forgot-password", authHandler.ForgotPassword)
 			auth.POST("/reset-password", authHandler.ResetPassword)
+			// Google OAuth routes
+			auth.GET("/google", authHandler.GoogleAuth)
+			auth.GET("/google/callback", authHandler.GoogleCallback)
 		}
 
 		// Protected routes (authentication required)

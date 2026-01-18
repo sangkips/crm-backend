@@ -14,6 +14,7 @@ type UserRepository interface {
 	GetByID(ctx context.Context, id uuid.UUID) (*entity.User, error)
 	GetByEmail(ctx context.Context, email string) (*entity.User, error)
 	GetByUsername(ctx context.Context, username string) (*entity.User, error)
+	GetByProviderID(ctx context.Context, provider string, providerID string) (*entity.User, error)
 	Update(ctx context.Context, user *entity.User) error
 	Delete(ctx context.Context, id uuid.UUID) error
 	List(ctx context.Context, params *pagination.PaginationParams, search string) ([]entity.User, int64, error)

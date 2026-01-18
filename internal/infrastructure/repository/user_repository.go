@@ -51,6 +51,15 @@ func (r *userRepository) GetByUsername(ctx context.Context, username string) (*e
 	return &user, err
 }
 
+func (r *userRepository) GetByProviderID(ctx context.Context, provider string, providerID string) (*entity.User, error) {
+	var user entity.User
+	err := r.db.WithContext(ctx).First(&user, "provider = ? AND provider_id = ?", provider, providerID).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, nil
+	}
+	return &user, err
+}
+
 func (r *userRepository) Update(ctx context.Context, user *entity.User) error {
 	return r.db.WithContext(ctx).Save(user).Error
 }

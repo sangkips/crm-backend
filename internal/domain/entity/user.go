@@ -14,7 +14,9 @@ type User struct {
 	LastName        string         `gorm:"size:255;not null" json:"last_name"`
 	Username        string         `gorm:"size:255;unique" json:"username"`
 	Email           string         `gorm:"size:255;unique;not null" json:"email"`
-	Password        string         `gorm:"size:255;not null" json:"-"`
+	Password        string         `gorm:"size:255" json:"-"`
+	Provider        string         `gorm:"size:50;default:'local'" json:"provider"`
+	ProviderID      *string        `gorm:"size:255" json:"-"`
 	Photo           *string        `gorm:"size:255" json:"photo,omitempty"`
 	StoreName       *string        `gorm:"size:255" json:"store_name,omitempty"`
 	StoreAddress    *string        `gorm:"type:text" json:"store_address,omitempty"`

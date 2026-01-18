@@ -12,6 +12,7 @@ import (
 	"github.com/sangkips/investify-api/internal/domain/repository"
 	"github.com/sangkips/investify-api/pkg/apperror"
 	"github.com/sangkips/investify-api/pkg/email"
+	"github.com/sangkips/investify-api/pkg/oauth"
 	"github.com/sangkips/investify-api/pkg/utils"
 )
 
@@ -22,6 +23,7 @@ type AuthService struct {
 	passwordResetRepo repository.PasswordResetTokenRepository
 	jwtManager        *utils.JWTManager
 	emailService      *email.EmailService
+	googleOAuth       *oauth.GoogleOAuthService
 }
 
 // NewAuthService creates a new auth service
@@ -31,6 +33,7 @@ func NewAuthService(
 	passwordResetRepo repository.PasswordResetTokenRepository,
 	jwtManager *utils.JWTManager,
 	emailService *email.EmailService,
+	googleOAuth *oauth.GoogleOAuthService,
 ) *AuthService {
 	return &AuthService{
 		userRepo:          userRepo,
@@ -38,6 +41,7 @@ func NewAuthService(
 		passwordResetRepo: passwordResetRepo,
 		jwtManager:        jwtManager,
 		emailService:      emailService,
+		googleOAuth:       googleOAuth,
 	}
 }
 
@@ -412,4 +416,162 @@ func (s *AuthService) ResetPassword(ctx context.Context, input *ResetPasswordInp
 	_ = s.passwordResetRepo.DeleteByEmail(ctx, input.Email)
 
 	return nil
+}
+
+// GoogleAuthInput represents the Google OAuth callback input
+type GoogleAuthInput struct {
+	Code  string
+	State string
+}
+
+// GoogleAuthOutput represents the Google OAuth result
+type GoogleAuthOutput struct {
+	User         *entity.User
+	AccessToken  string
+	RefreshToken string
+	IsNewUser    bool
+}
+
+// GetGoogleAuthURL returns the Google OAuth consent URL
+func (s *AuthService) GetGoogleAuthURL(state string) (string, error) {
+	if s.googleOAuth == nil || !s.googleOAuth.IsConfigured() {
+		return "", oauth.ErrOAuthNotConfigured
+	}
+	return s.googleOAuth.GetAuthURL(state), nil
+}
+
+// GetGoogleFrontendURLs returns the frontend redirect URLs for OAuth
+func (s *AuthService) GetGoogleFrontendURLs() (successURL, errorURL string) {
+	if s.googleOAuth == nil {
+		return "", ""
+	}
+	return s.googleOAuth.GetFrontendSuccessURL(), s.googleOAuth.GetFrontendErrorURL()
+}
+
+// GoogleAuth handles Google OAuth authentication
+// 1. Exchange code for Google tokens
+// 2. Fetch user info from Google
+// 3. Find or create user in database (link existing accounts by email)
+// 4. Generate JWT tokens
+func (s *AuthService) GoogleAuth(ctx context.Context, input *GoogleAuthInput) (*GoogleAuthOutput, error) {
+	if s.googleOAuth == nil || !s.googleOAuth.IsConfigured() {
+		return nil, oauth.ErrOAuthNotConfigured
+	}
+
+	// Exchange authorization code for tokens
+	token, err := s.googleOAuth.ExchangeCode(ctx, input.Code)
+	if err != nil {
+		return nil, err
+	}
+
+	// Get user info from Google
+	googleUser, err := s.googleOAuth.GetUserInfo(ctx, token)
+	if err != nil {
+		return nil, err
+	}
+
+	var user *entity.User
+	var isNewUser bool
+
+	// First, try to find user by Google provider ID
+	user, err = s.userRepo.GetByProviderID(ctx, "google", googleUser.ID)
+	if err != nil {
+		return nil, err
+	}
+
+	if user == nil {
+		// Try to find user by email (for account linking)
+		user, err = s.userRepo.GetByEmail(ctx, googleUser.Email)
+		if err != nil {
+			return nil, err
+		}
+
+		if user != nil {
+			// Link existing account with Google
+			user.Provider = "google"
+			user.ProviderID = &googleUser.ID
+			if googleUser.Picture != "" && user.Photo == nil {
+				user.Photo = &googleUser.Picture
+			}
+			// Mark email as verified since Google verified it
+			now := time.Now()
+			user.EmailVerifiedAt = &now
+
+			if err := s.userRepo.Update(ctx, user); err != nil {
+				return nil, err
+			}
+		} else {
+			// Create new user
+			isNewUser = true
+
+			// Generate username from email
+			username := googleUser.Email
+			for i, c := range googleUser.Email {
+				if c == '@' {
+					username = googleUser.Email[:i]
+					break
+				}
+			}
+
+			// Make username unique by appending random suffix if needed
+			existingUser, _ := s.userRepo.GetByUsername(ctx, username)
+			if existingUser != nil {
+				randomBytes := make([]byte, 4)
+				rand.Read(randomBytes)
+				username = username + "_" + hex.EncodeToString(randomBytes)[:6]
+			}
+
+			now := time.Now()
+			user = &entity.User{
+				FirstName:       googleUser.GivenName,
+				LastName:        googleUser.FamilyName,
+				Username:        username,
+				Email:           googleUser.Email,
+				Provider:        "google",
+				ProviderID:      &googleUser.ID,
+				Photo:           &googleUser.Picture,
+				EmailVerifiedAt: &now,
+			}
+
+			if err := s.userRepo.Create(ctx, user); err != nil {
+				return nil, err
+			}
+
+			// Assign default "user" role
+			defaultRole, err := s.roleRepo.GetByName(ctx, "user")
+			if err == nil && defaultRole != nil {
+				_ = s.userRepo.AssignRole(ctx, user.ID, defaultRole.ID)
+			}
+		}
+	}
+
+	// Get user with roles for token generation
+	user, err = s.userRepo.GetWithRoles(ctx, user.ID)
+	if err != nil {
+		return nil, err
+	}
+
+	// Generate JWT tokens
+	roles := make([]string, 0)
+	for _, role := range user.Roles {
+		roles = append(roles, role.Name)
+	}
+	permissions := user.GetPermissions()
+
+	accessToken, err := s.jwtManager.GenerateAccessToken(user.ID, user.Email, roles, permissions)
+	if err != nil {
+		return nil, err
+	}
+
+	refreshToken, err := s.jwtManager.GenerateRefreshToken(user.ID)
+	if err != nil {
+		return nil, err
+	}
+
+	return &GoogleAuthOutput{
+		User:         user,
+		AccessToken:  accessToken,
+		RefreshToken: refreshToken,
+		IsNewUser:    isNewUser,
+	}, nil
 }
