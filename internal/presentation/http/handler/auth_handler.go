@@ -272,8 +272,13 @@ func (h *AuthHandler) GoogleAuth(c *gin.Context) {
 	}
 	state := hex.EncodeToString(stateBytes)
 
+	// Detect if we're on HTTPS (for Secure cookie flag)
+	isSecure := c.Request.TLS != nil || c.GetHeader("X-Forwarded-Proto") == "https"
+
 	// Store state in cookie for validation during callback
-	c.SetCookie("oauth_state", state, 600, "/", "", false, true)
+	// Use SameSite=Lax since redirect comes back to same domain
+	c.SetSameSite(2) // http.SameSiteLaxMode = 2
+	c.SetCookie("oauth_state", state, 600, "/", "", isSecure, true)
 
 	authURL, err := h.authService.GetGoogleAuthURL(state)
 	if err != nil {
@@ -310,8 +315,10 @@ func (h *AuthHandler) GoogleCallback(c *gin.Context) {
 		return
 	}
 
-	// Clear the state cookie
-	c.SetCookie("oauth_state", "", -1, "/", "", false, true)
+	// Clear the state cookie (use same settings as when it was set)
+	isSecure := c.Request.TLS != nil || c.GetHeader("X-Forwarded-Proto") == "https"
+	c.SetSameSite(2) // http.SameSiteLaxMode = 2
+	c.SetCookie("oauth_state", "", -1, "/", "", isSecure, true)
 
 	// Get authorization code
 	code := c.Query("code")
