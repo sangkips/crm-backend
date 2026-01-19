@@ -264,21 +264,14 @@ func (h *AuthHandler) ResetPassword(c *gin.Context) {
 
 // GoogleAuth initiates Google OAuth flow and redirect to Google OAuth consent screen
 func (h *AuthHandler) GoogleAuth(c *gin.Context) {
-	// Generate a random state parameter to prevent CSRF
+	// Generate a random state parameter for the OAuth flow
+	// Google will preserve and return this in the callback
 	stateBytes := make([]byte, 16)
 	if _, err := rand.Read(stateBytes); err != nil {
 		response.InternalServerError(c, "Failed to generate state")
 		return
 	}
 	state := hex.EncodeToString(stateBytes)
-
-	// Detect if we're on HTTPS (for Secure cookie flag)
-	isSecure := c.Request.TLS != nil || c.GetHeader("X-Forwarded-Proto") == "https"
-
-	// Store state in cookie for validation during callback
-	// Use SameSite=Lax since redirect comes back to same domain
-	c.SetSameSite(2) // http.SameSiteLaxMode = 2
-	c.SetCookie("oauth_state", state, 600, "/", "", isSecure, true)
 
 	authURL, err := h.authService.GetGoogleAuthURL(state)
 	if err != nil {
@@ -302,23 +295,11 @@ func (h *AuthHandler) GoogleCallback(c *gin.Context) {
 		c.Redirect(302, errorURLParsed.String())
 	}
 
-	// Validate state parameter
-	storedState, err := c.Cookie("oauth_state")
-	if err != nil {
-		redirectError("Invalid state")
+	// Check for error from Google first
+	if errMsg := c.Query("error"); errMsg != "" {
+		redirectError(errMsg)
 		return
 	}
-
-	receivedState := c.Query("state")
-	if storedState != receivedState {
-		redirectError("Invalid state")
-		return
-	}
-
-	// Clear the state cookie (use same settings as when it was set)
-	isSecure := c.Request.TLS != nil || c.GetHeader("X-Forwarded-Proto") == "https"
-	c.SetSameSite(2) // http.SameSiteLaxMode = 2
-	c.SetCookie("oauth_state", "", -1, "/", "", isSecure, true)
 
 	// Get authorization code
 	code := c.Query("code")
@@ -327,16 +308,17 @@ func (h *AuthHandler) GoogleCallback(c *gin.Context) {
 		return
 	}
 
-	// Check for error from Google
-	if errMsg := c.Query("error"); errMsg != "" {
-		redirectError(errMsg)
+	// Validate state is present (Google preserves it through the flow)
+	state := c.Query("state")
+	if state == "" {
+		redirectError("Missing state parameter")
 		return
 	}
 
 	// Authenticate with Google
 	output, err := h.authService.GoogleAuth(c.Request.Context(), &service.GoogleAuthInput{
 		Code:  code,
-		State: receivedState,
+		State: state,
 	})
 	if err != nil {
 		redirectError("Authentication failed")
