@@ -74,19 +74,31 @@ func (r *userRepository) List(ctx context.Context, params *pagination.Pagination
 
 	query := r.db.WithContext(ctx).Model(&entity.User{})
 
-	if search != "" {
-		query = query.Where("name ILIKE ? OR email ILIKE ? OR username ILIKE ?",
-			"%"+search+"%", "%"+search+"%", "%"+search+"%")
+	// Apply tenant filtering via tenant_memberships unless skip_tenant_scope is set
+	skipTenantScope, _ := ctx.Value(SkipTenantScopeKey).(bool)
+	if !skipTenantScope {
+		tenantID, ok := GetTenantID(ctx)
+		if ok {
+			// Filter users that belong to the current tenant
+			query = query.Joins("INNER JOIN tenant_memberships ON tenant_memberships.user_id = users.id").
+				Where("tenant_memberships.tenant_id = ?", tenantID)
+		}
 	}
 
-	if err := query.Count(&total).Error; err != nil {
+	if search != "" {
+		query = query.Where("users.first_name ILIKE ? OR users.last_name ILIKE ? OR users.email ILIKE ? OR users.username ILIKE ?",
+			"%"+search+"%", "%"+search+"%", "%"+search+"%", "%"+search+"%")
+	}
+
+	// Use distinct count because of join
+	if err := query.Distinct("users.id").Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
 
 	params.Validate()
-	err := query.Offset(params.Offset()).Limit(params.PerPage).
+	err := query.Distinct("users.*").Offset(params.Offset()).Limit(params.PerPage).
 		Preload("Roles").
-		Order("created_at DESC").
+		Order("users.created_at DESC").
 		Find(&users).Error
 
 	return users, total, err
