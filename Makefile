@@ -66,6 +66,14 @@ migrate-down:
 migrate-create:
 	migrate create -ext sql -dir migrations -seq $(name)
 
+# Run tenant migration manually with psql (for existing databases)
+# Uses DB_* environment variables from .env
+migrate-tenant:
+	@echo "Running tenant migration..."
+	@. ./.env 2>/dev/null || true; \
+	PGPASSWORD=$${DB_PASSWORD} psql -h $${DB_HOST:-localhost} -p $${DB_PORT:-5432} -U $${DB_USER:-postgres} -d $${DB_NAME:-investify} -f migrations/001_add_tenant_id.sql
+	@echo "Tenant migration completed!"
+
 # Seed the database with test data
 seed:
 	go run cmd/seed/main.go

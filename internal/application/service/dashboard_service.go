@@ -16,6 +16,7 @@ type DashboardService struct {
 	productRepo   repository.ProductRepository
 	customerRepo  repository.CustomerRepository
 	analyticsRepo repository.AnalyticsRepository
+	tenantRepo    repository.TenantRepository
 }
 
 // NewDashboardService creates a new dashboard service
@@ -25,6 +26,7 @@ func NewDashboardService(
 	productRepo repository.ProductRepository,
 	customerRepo repository.CustomerRepository,
 	analyticsRepo repository.AnalyticsRepository,
+	tenantRepo repository.TenantRepository,
 ) *DashboardService {
 	return &DashboardService{
 		orderRepo:     orderRepo,
@@ -32,6 +34,7 @@ func NewDashboardService(
 		productRepo:   productRepo,
 		customerRepo:  customerRepo,
 		analyticsRepo: analyticsRepo,
+		tenantRepo:    tenantRepo,
 	}
 }
 
@@ -41,6 +44,7 @@ type DashboardStats struct {
 	TotalProducts     int64                `json:"total_products"`
 	TotalOrders       int64                `json:"total_orders"`
 	TotalPurchases    int64                `json:"total_purchases"`
+	TotalTenants      int64                `json:"total_tenants"`
 	TotalRevenue      float64              `json:"total_revenue"`
 	MonthlyRevenue    float64              `json:"monthly_revenue"`
 	LowStockCount     int64                `json:"low_stock_count"`
@@ -102,6 +106,13 @@ func (s *DashboardService) GetDashboardStats(ctx context.Context, userID uuid.UU
 	// Get counts
 	paginationParams := pagination.DefaultPagination()
 	paginationParams.PerPage = 1 // We only need the count
+
+	// Tenants - count all tenants (super admin dashboard)
+	tenantCount, err := s.tenantRepo.Count(ctx)
+	if err != nil {
+		return nil, err
+	}
+	stats.TotalTenants = tenantCount
 
 	// Customers - show all customers for admin dashboard (skipUserFilter = true)
 	_, customerCount, err := s.customerRepo.List(ctx, userID, paginationParams, "", true)

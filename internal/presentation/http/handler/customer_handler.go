@@ -6,6 +6,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/sangkips/investify-api/internal/application/service"
+	infraRepo "github.com/sangkips/investify-api/internal/infrastructure/repository"
 	"github.com/sangkips/investify-api/internal/presentation/http/dto/response"
 	"github.com/sangkips/investify-api/pkg/pagination"
 )
@@ -46,7 +47,20 @@ func (h *CustomerHandler) List(c *gin.Context) {
 		PerPage: perPage,
 	}
 
-	result, err := h.customerService.ListCustomers(c.Request.Context(), *userID, params, search, isSuperAdmin)
+	// For super admins, skip tenant scope to see all customers
+	ctx := c.Request.Context()
+	if isSuperAdmin {
+		ctx = infraRepo.WithSkipTenantScope(ctx, true)
+		// Allow super admin to filter by specific tenant if provided
+		if tenantIDStr := c.Query("tenant_id"); tenantIDStr != "" {
+			if tenantID, err := uuid.Parse(tenantIDStr); err == nil {
+				ctx = infraRepo.WithTenant(ctx, tenantID)
+				ctx = infraRepo.WithSkipTenantScope(ctx, false)
+			}
+		}
+	}
+
+	result, err := h.customerService.ListCustomers(ctx, *userID, params, search, isSuperAdmin)
 	if err != nil {
 		response.Error(c, err)
 		return
@@ -67,7 +81,20 @@ func (h *CustomerHandler) listWithCursor(c *gin.Context, userID uuid.UUID, searc
 		Limit:     limit,
 	}
 
-	result, err := h.customerService.ListCustomersWithCursor(c.Request.Context(), userID, params, search, isSuperAdmin)
+	// For super admins, skip tenant scope to see all customers
+	ctx := c.Request.Context()
+	if isSuperAdmin {
+		ctx = infraRepo.WithSkipTenantScope(ctx, true)
+		// Allow super admin to filter by specific tenant if provided
+		if tenantIDStr := c.Query("tenant_id"); tenantIDStr != "" {
+			if tenantID, err := uuid.Parse(tenantIDStr); err == nil {
+				ctx = infraRepo.WithTenant(ctx, tenantID)
+				ctx = infraRepo.WithSkipTenantScope(ctx, false)
+			}
+		}
+	}
+
+	result, err := h.customerService.ListCustomersWithCursor(ctx, userID, params, search, isSuperAdmin)
 	if err != nil {
 		response.Error(c, err)
 		return
@@ -239,7 +266,20 @@ func (h *SupplierHandler) List(c *gin.Context) {
 		PerPage: perPage,
 	}
 
-	result, err := h.supplierService.ListSuppliers(c.Request.Context(), *userID, params, search, isSuperAdmin)
+	// For super admins, skip tenant scope to see all suppliers
+	ctx := c.Request.Context()
+	if isSuperAdmin {
+		ctx = infraRepo.WithSkipTenantScope(ctx, true)
+		// Allow super admin to filter by specific tenant if provided
+		if tenantIDStr := c.Query("tenant_id"); tenantIDStr != "" {
+			if tenantID, err := uuid.Parse(tenantIDStr); err == nil {
+				ctx = infraRepo.WithTenant(ctx, tenantID)
+				ctx = infraRepo.WithSkipTenantScope(ctx, false)
+			}
+		}
+	}
+
+	result, err := h.supplierService.ListSuppliers(ctx, *userID, params, search, isSuperAdmin)
 	if err != nil {
 		response.Error(c, err)
 		return

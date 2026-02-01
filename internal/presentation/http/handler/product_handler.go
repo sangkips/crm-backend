@@ -6,6 +6,7 @@ import (
 	"github.com/sangkips/investify-api/internal/application/service"
 	"github.com/sangkips/investify-api/internal/domain/enum"
 	"github.com/sangkips/investify-api/internal/domain/repository"
+	infraRepo "github.com/sangkips/investify-api/internal/infrastructure/repository"
 	"github.com/sangkips/investify-api/internal/presentation/http/dto/request"
 	"github.com/sangkips/investify-api/internal/presentation/http/dto/response"
 	"github.com/sangkips/investify-api/pkg/pagination"
@@ -69,7 +70,20 @@ func (h *ProductHandler) List(c *gin.Context) {
 		}
 	}
 
-	result, err := h.productService.ListProducts(c.Request.Context(), *userID, params)
+	// For super admins, skip tenant scope to see all products
+	ctx := c.Request.Context()
+	if isSuperAdmin {
+		ctx = infraRepo.WithSkipTenantScope(ctx, true)
+		// Allow super admin to filter by specific tenant if provided
+		if tenantIDStr := c.Query("tenant_id"); tenantIDStr != "" {
+			if tenantID, err := uuid.Parse(tenantIDStr); err == nil {
+				ctx = infraRepo.WithTenant(ctx, tenantID)
+				ctx = infraRepo.WithSkipTenantScope(ctx, false)
+			}
+		}
+	}
+
+	result, err := h.productService.ListProducts(ctx, *userID, params)
 	if err != nil {
 		response.Error(c, err)
 		return
@@ -118,7 +132,20 @@ func (h *ProductHandler) listWithCursor(c *gin.Context, userID uuid.UUID, isSupe
 		}
 	}
 
-	result, err := h.productService.ListProductsWithCursor(c.Request.Context(), userID, params)
+	// For super admins, skip tenant scope to see all products
+	ctx := c.Request.Context()
+	if isSuperAdmin {
+		ctx = infraRepo.WithSkipTenantScope(ctx, true)
+		// Allow super admin to filter by specific tenant if provided
+		if tenantIDStr := c.Query("tenant_id"); tenantIDStr != "" {
+			if tenantID, err := uuid.Parse(tenantIDStr); err == nil {
+				ctx = infraRepo.WithTenant(ctx, tenantID)
+				ctx = infraRepo.WithSkipTenantScope(ctx, false)
+			}
+		}
+	}
+
+	result, err := h.productService.ListProductsWithCursor(ctx, userID, params)
 	if err != nil {
 		response.Error(c, err)
 		return
@@ -295,7 +322,20 @@ func (h *CategoryHandler) List(c *gin.Context) {
 		PerPage: perPage,
 	}
 
-	result, err := h.categoryService.ListCategories(c.Request.Context(), *userID, params, search, isSuperAdmin)
+	// For super admins, skip tenant scope to see all categories
+	ctx := c.Request.Context()
+	if isSuperAdmin {
+		ctx = infraRepo.WithSkipTenantScope(ctx, true)
+		// Allow super admin to filter by specific tenant if provided
+		if tenantIDStr := c.Query("tenant_id"); tenantIDStr != "" {
+			if tenantID, err := uuid.Parse(tenantIDStr); err == nil {
+				ctx = infraRepo.WithTenant(ctx, tenantID)
+				ctx = infraRepo.WithSkipTenantScope(ctx, false)
+			}
+		}
+	}
+
+	result, err := h.categoryService.ListCategories(ctx, *userID, params, search, isSuperAdmin)
 	if err != nil {
 		response.Error(c, err)
 		return
@@ -419,7 +459,20 @@ func (h *UnitHandler) List(c *gin.Context) {
 	}
 	search := c.Query("search")
 
-	result, err := h.unitService.ListUnits(c.Request.Context(), *userID, params, search, isSuperAdmin)
+	// For super admins, skip tenant scope to see all units
+	ctx := c.Request.Context()
+	if isSuperAdmin {
+		ctx = infraRepo.WithSkipTenantScope(ctx, true)
+		// Allow super admin to filter by specific tenant if provided
+		if tenantIDStr := c.Query("tenant_id"); tenantIDStr != "" {
+			if tenantID, err := uuid.Parse(tenantIDStr); err == nil {
+				ctx = infraRepo.WithTenant(ctx, tenantID)
+				ctx = infraRepo.WithSkipTenantScope(ctx, false)
+			}
+		}
+	}
+
+	result, err := h.unitService.ListUnits(ctx, *userID, params, search, isSuperAdmin)
 	if err != nil {
 		response.Error(c, err)
 		return

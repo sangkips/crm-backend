@@ -11,6 +11,8 @@ require (
 	github.com/google/uuid v1.5.0
 	github.com/spf13/viper v1.18.2
 	golang.org/x/crypto v0.39.0
+	golang.org/x/oauth2 v0.34.0
+	golang.org/x/time v0.14.0
 	gorm.io/driver/postgres v1.5.4
 	gorm.io/gorm v1.25.5
 )
@@ -56,7 +58,6 @@ require (
 	golang.org/x/arch v0.18.0 // indirect
 	golang.org/x/exp v0.0.0-20230905200255-921286631fa9 // indirect
 	golang.org/x/net v0.41.0 // indirect
-	golang.org/x/oauth2 v0.34.0 // indirect
 	golang.org/x/sys v0.33.0 // indirect
 	golang.org/x/text v0.26.0 // indirect
 	google.golang.org/protobuf v1.36.6 // indirect

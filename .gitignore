@@ -44,3 +44,5 @@ storage/
 # Temporary files
 tmp/
 temp/
+
+WARP.md

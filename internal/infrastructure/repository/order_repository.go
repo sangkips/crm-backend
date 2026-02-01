@@ -28,6 +28,7 @@ func (r *orderRepository) Create(ctx context.Context, order *entity.Order) error
 func (r *orderRepository) GetByID(ctx context.Context, id uuid.UUID) (*entity.Order, error) {
 	var order entity.Order
 	err := r.db.WithContext(ctx).
+		Scopes(TenantScope(ctx)).
 		Preload("Customer").
 		First(&order, "id = ?", id).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -38,7 +39,7 @@ func (r *orderRepository) GetByID(ctx context.Context, id uuid.UUID) (*entity.Or
 
 func (r *orderRepository) GetByInvoiceNo(ctx context.Context, invoiceNo string) (*entity.Order, error) {
 	var order entity.Order
-	err := r.db.WithContext(ctx).First(&order, "invoice_no = ?", invoiceNo).Error
+	err := r.db.WithContext(ctx).Scopes(TenantScope(ctx)).First(&order, "invoice_no = ?", invoiceNo).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, nil
 	}
@@ -57,8 +58,8 @@ func (r *orderRepository) List(ctx context.Context, userID uuid.UUID, params *do
 	var orders []entity.Order
 	var total int64
 
-	query := r.db.WithContext(ctx).Model(&entity.Order{})
-	if !params.SkipUserFilter {
+	query := r.db.WithContext(ctx).Model(&entity.Order{}).Scopes(TenantScope(ctx))
+	if !params.SkipUserFilter && userID != uuid.Nil {
 		query = query.Where("user_id = ?", userID)
 	}
 
@@ -108,6 +109,7 @@ func (r *orderRepository) List(ctx context.Context, userID uuid.UUID, params *do
 func (r *orderRepository) GetWithDetails(ctx context.Context, id uuid.UUID) (*entity.Order, error) {
 	var order entity.Order
 	err := r.db.WithContext(ctx).
+		Scopes(TenantScope(ctx)).
 		Preload("Customer").
 		Preload("Details.Product").
 		Preload("Details.Product.Category").
@@ -128,8 +130,11 @@ func (r *orderRepository) GetDueOrders(ctx context.Context, userID uuid.UUID, pa
 	var orders []entity.Order
 	var total int64
 
-	query := r.db.WithContext(ctx).Model(&entity.Order{}).
-		Where("user_id = ? AND due > 0", userID)
+	query := r.db.WithContext(ctx).Model(&entity.Order{}).Scopes(TenantScope(ctx)).
+		Where("due > 0")
+	if userID != uuid.Nil {
+		query = query.Where("user_id = ?", userID)
+	}
 
 	if err := query.Count(&total).Error; err != nil {
 		return nil, 0, err

@@ -47,6 +47,10 @@ func AutoMigrate(db *gorm.DB) error {
 	log.Println("Running database migrations...")
 
 	err := db.AutoMigrate(
+		// Tenant entities (must be first for foreign key references)
+		&entity.Tenant{},
+		&entity.TenantMembership{},
+
 		// User-related entities
 		&entity.User{},
 		&entity.Role{},

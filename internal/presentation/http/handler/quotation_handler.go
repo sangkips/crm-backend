@@ -8,6 +8,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/sangkips/investify-api/internal/application/service"
 	"github.com/sangkips/investify-api/internal/domain/enum"
+	infraRepo "github.com/sangkips/investify-api/internal/infrastructure/repository"
 	"github.com/sangkips/investify-api/internal/presentation/http/dto/response"
 	"github.com/sangkips/investify-api/pkg/pagination"
 )
@@ -74,7 +75,20 @@ func (h *QuotationHandler) List(c *gin.Context) {
 		}
 	}
 
-	result, err := h.quotationService.ListQuotations(c.Request.Context(), &service.ListQuotationsInput{
+	// For super admins, skip tenant scope to see all quotations
+	ctx := c.Request.Context()
+	if isSuperAdmin {
+		ctx = infraRepo.WithSkipTenantScope(ctx, true)
+		// Allow super admin to filter by specific tenant if provided
+		if tenantIDStr := c.Query("tenant_id"); tenantIDStr != "" {
+			if tenantID, err := uuid.Parse(tenantIDStr); err == nil {
+				ctx = infraRepo.WithTenant(ctx, tenantID)
+				ctx = infraRepo.WithSkipTenantScope(ctx, false)
+			}
+		}
+	}
+
+	result, err := h.quotationService.ListQuotations(ctx, &service.ListQuotationsInput{
 		UserID:       *userID,
 		IsSuperAdmin: isSuperAdmin,
 		Pagination: &pagination.PaginationParams{

@@ -11,6 +11,7 @@ import (
 // Purchase represents a purchase from a supplier
 type Purchase struct {
 	ID            uuid.UUID           `gorm:"type:uuid;primary_key" json:"id"`
+	TenantID      uuid.UUID           `gorm:"type:uuid;not null;index" json:"tenant_id"`
 	UserID        uuid.UUID           `gorm:"type:uuid;not null;index" json:"user_id"`
 	SupplierID    *uuid.UUID          `gorm:"type:uuid;index" json:"supplier_id,omitempty"`
 	CreatedByID   *uuid.UUID          `gorm:"type:uuid;column:created_by" json:"created_by,omitempty"`
@@ -26,6 +27,7 @@ type Purchase struct {
 	DeletedAt     gorm.DeletedAt      `gorm:"index" json:"-"`
 
 	// Relationships
+	Tenant    Tenant           `gorm:"foreignKey:TenantID" json:"-"`
 	User      User             `gorm:"foreignKey:UserID" json:"-"`
 	Supplier  *Supplier        `gorm:"foreignKey:SupplierID" json:"supplier,omitempty"`
 	CreatedBy *User            `gorm:"foreignKey:CreatedByID" json:"created_by_user,omitempty"`

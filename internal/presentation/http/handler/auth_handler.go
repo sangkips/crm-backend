@@ -66,10 +66,11 @@ func (h *AuthHandler) Register(c *gin.Context) {
 	}
 
 	user, err := h.authService.Register(c.Request.Context(), &service.RegisterInput{
-		FirstName: req.FirstName,
-		LastName:  req.LastName,
-		Email:     req.Email,
-		Password:  req.Password,
+		FirstName:        req.FirstName,
+		LastName:         req.LastName,
+		Email:            req.Email,
+		Password:         req.Password,
+		OrganizationName: req.OrganizationName,
 	})
 	if err != nil {
 		response.Error(c, err)

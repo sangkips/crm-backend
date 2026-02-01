@@ -11,6 +11,7 @@ import (
 // Supplier represents a supplier in the CRM
 type Supplier struct {
 	ID            uuid.UUID         `gorm:"type:uuid;primary_key" json:"id"`
+	TenantID      uuid.UUID         `gorm:"type:uuid;not null;index" json:"tenant_id"`
 	UserID        uuid.UUID         `gorm:"type:uuid;not null;index" json:"user_id"`
 	Name          string            `gorm:"size:255;not null" json:"name"`
 	Email         *string           `gorm:"size:255" json:"email,omitempty"`
@@ -28,6 +29,7 @@ type Supplier struct {
 	DeletedAt     gorm.DeletedAt    `gorm:"index" json:"-"`
 
 	// Relationships
+	Tenant    Tenant     `gorm:"foreignKey:TenantID" json:"-"`
 	User      User       `gorm:"foreignKey:UserID" json:"-"`
 	Purchases []Purchase `gorm:"foreignKey:SupplierID" json:"-"`
 }

@@ -9,6 +9,7 @@ import (
 	"github.com/sangkips/investify-api/internal/application/service"
 	"github.com/sangkips/investify-api/internal/domain/enum"
 	"github.com/sangkips/investify-api/internal/domain/repository"
+	infraRepo "github.com/sangkips/investify-api/internal/infrastructure/repository"
 	"github.com/sangkips/investify-api/internal/presentation/http/dto/response"
 	"github.com/sangkips/investify-api/pkg/pagination"
 )
@@ -74,7 +75,20 @@ func (h *PurchaseHandler) List(c *gin.Context) {
 		}
 	}
 
-	result, err := h.purchaseService.ListPurchases(c.Request.Context(), *userID, params)
+	// For super admins, skip tenant scope to see all purchases
+	ctx := c.Request.Context()
+	if isSuperAdmin {
+		ctx = infraRepo.WithSkipTenantScope(ctx, true)
+		// Allow super admin to filter by specific tenant if provided
+		if tenantIDStr := c.Query("tenant_id"); tenantIDStr != "" {
+			if tenantID, err := uuid.Parse(tenantIDStr); err == nil {
+				ctx = infraRepo.WithTenant(ctx, tenantID)
+				ctx = infraRepo.WithSkipTenantScope(ctx, false)
+			}
+		}
+	}
+
+	result, err := h.purchaseService.ListPurchases(ctx, *userID, params)
 	if err != nil {
 		response.Error(c, err)
 		return

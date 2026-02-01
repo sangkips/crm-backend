@@ -26,7 +26,7 @@ func (r *customerRepository) Create(ctx context.Context, customer *entity.Custom
 
 func (r *customerRepository) GetByID(ctx context.Context, id uuid.UUID) (*entity.Customer, error) {
 	var customer entity.Customer
-	err := r.db.WithContext(ctx).First(&customer, "id = ?", id).Error
+	err := r.db.WithContext(ctx).Scopes(TenantScope(ctx)).First(&customer, "id = ?", id).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, nil
 	}
@@ -35,7 +35,7 @@ func (r *customerRepository) GetByID(ctx context.Context, id uuid.UUID) (*entity
 
 func (r *customerRepository) GetByEmail(ctx context.Context, email string) (*entity.Customer, error) {
 	var customer entity.Customer
-	err := r.db.WithContext(ctx).First(&customer, "email = ?", email).Error
+	err := r.db.WithContext(ctx).Scopes(TenantScope(ctx)).First(&customer, "email = ?", email).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, nil
 	}
@@ -54,8 +54,8 @@ func (r *customerRepository) List(ctx context.Context, userID uuid.UUID, params 
 	var customers []entity.Customer
 	var total int64
 
-	query := r.db.WithContext(ctx).Model(&entity.Customer{})
-	if !skipUserFilter {
+	query := r.db.WithContext(ctx).Model(&entity.Customer{}).Scopes(TenantScope(ctx))
+	if !skipUserFilter && userID != uuid.Nil {
 		query = query.Where("user_id = ?", userID)
 	}
 
@@ -82,8 +82,8 @@ func (r *customerRepository) ListWithCursor(ctx context.Context, userID uuid.UUI
 	var customers []entity.Customer
 
 	params.Validate()
-	query := r.db.WithContext(ctx).Model(&entity.Customer{})
-	if !skipUserFilter {
+	query := r.db.WithContext(ctx).Model(&entity.Customer{}).Scopes(TenantScope(ctx))
+	if !skipUserFilter && userID != uuid.Nil {
 		query = query.Where("user_id = ?", userID)
 	}
 
@@ -132,7 +132,7 @@ func (r *supplierRepository) Create(ctx context.Context, supplier *entity.Suppli
 
 func (r *supplierRepository) GetByID(ctx context.Context, id uuid.UUID) (*entity.Supplier, error) {
 	var supplier entity.Supplier
-	err := r.db.WithContext(ctx).First(&supplier, "id = ?", id).Error
+	err := r.db.WithContext(ctx).Scopes(TenantScope(ctx)).First(&supplier, "id = ?", id).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, nil
 	}
@@ -141,7 +141,7 @@ func (r *supplierRepository) GetByID(ctx context.Context, id uuid.UUID) (*entity
 
 func (r *supplierRepository) GetByEmail(ctx context.Context, email string) (*entity.Supplier, error) {
 	var supplier entity.Supplier
-	err := r.db.WithContext(ctx).First(&supplier, "email = ?", email).Error
+	err := r.db.WithContext(ctx).Scopes(TenantScope(ctx)).First(&supplier, "email = ?", email).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, nil
 	}
@@ -160,8 +160,8 @@ func (r *supplierRepository) List(ctx context.Context, userID uuid.UUID, params 
 	var suppliers []entity.Supplier
 	var total int64
 
-	query := r.db.WithContext(ctx).Model(&entity.Supplier{})
-	if !skipUserFilter {
+	query := r.db.WithContext(ctx).Model(&entity.Supplier{}).Scopes(TenantScope(ctx))
+	if !skipUserFilter && userID != uuid.Nil {
 		query = query.Where("user_id = ?", userID)
 	}
 

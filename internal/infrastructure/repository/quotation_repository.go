@@ -27,6 +27,7 @@ func (r *quotationRepository) Create(ctx context.Context, quotation *entity.Quot
 func (r *quotationRepository) GetByID(ctx context.Context, id uuid.UUID) (*entity.Quotation, error) {
 	var quotation entity.Quotation
 	err := r.db.WithContext(ctx).
+		Scopes(TenantScope(ctx)).
 		Preload("Customer").
 		First(&quotation, "id = ?", id).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -37,7 +38,7 @@ func (r *quotationRepository) GetByID(ctx context.Context, id uuid.UUID) (*entit
 
 func (r *quotationRepository) GetByReference(ctx context.Context, reference string) (*entity.Quotation, error) {
 	var quotation entity.Quotation
-	err := r.db.WithContext(ctx).First(&quotation, "reference = ?", reference).Error
+	err := r.db.WithContext(ctx).Scopes(TenantScope(ctx)).First(&quotation, "reference = ?", reference).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, nil
 	}
@@ -56,7 +57,7 @@ func (r *quotationRepository) List(ctx context.Context, userID uuid.UUID, params
 	var quotations []entity.Quotation
 	var total int64
 
-	query := r.db.WithContext(ctx).Model(&entity.Quotation{})
+	query := r.db.WithContext(ctx).Model(&entity.Quotation{}).Scopes(TenantScope(ctx))
 
 	// Only filter by user_id if a non-zero userID is provided (super-admin can see all)
 	if userID != uuid.Nil {
@@ -102,6 +103,7 @@ func (r *quotationRepository) List(ctx context.Context, userID uuid.UUID, params
 func (r *quotationRepository) GetWithDetails(ctx context.Context, id uuid.UUID) (*entity.Quotation, error) {
 	var quotation entity.Quotation
 	err := r.db.WithContext(ctx).
+		Scopes(TenantScope(ctx)).
 		Preload("Customer").
 		Preload("Details.Product").
 		First(&quotation, "id = ?", id).Error
@@ -119,7 +121,7 @@ func (r *quotationRepository) UpdateStatus(ctx context.Context, id uuid.UUID, st
 
 func (r *quotationRepository) GetNextReferenceNumber(ctx context.Context) (int, error) {
 	var count int64
-	err := r.db.WithContext(ctx).Model(&entity.Quotation{}).Count(&count).Error
+	err := r.db.WithContext(ctx).Model(&entity.Quotation{}).Scopes(TenantScope(ctx)).Count(&count).Error
 	return int(count) + 1, err
 }
 

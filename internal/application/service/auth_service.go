@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/google/uuid"
@@ -20,6 +21,7 @@ import (
 type AuthService struct {
 	userRepo          repository.UserRepository
 	roleRepo          repository.RoleRepository
+	tenantRepo        repository.TenantRepository
 	passwordResetRepo repository.PasswordResetTokenRepository
 	jwtManager        *utils.JWTManager
 	emailService      *email.EmailService
@@ -30,6 +32,7 @@ type AuthService struct {
 func NewAuthService(
 	userRepo repository.UserRepository,
 	roleRepo repository.RoleRepository,
+	tenantRepo repository.TenantRepository,
 	passwordResetRepo repository.PasswordResetTokenRepository,
 	jwtManager *utils.JWTManager,
 	emailService *email.EmailService,
@@ -38,6 +41,7 @@ func NewAuthService(
 	return &AuthService{
 		userRepo:          userRepo,
 		roleRepo:          roleRepo,
+		tenantRepo:        tenantRepo,
 		passwordResetRepo: passwordResetRepo,
 		jwtManager:        jwtManager,
 		emailService:      emailService,
@@ -85,7 +89,14 @@ func (s *AuthService) Login(ctx context.Context, input *LoginInput) (*LoginOutpu
 	}
 	permissions := user.GetPermissions()
 
-	accessToken, err := s.jwtManager.GenerateAccessToken(user.ID, user.Email, roles, permissions)
+	// Get user's default tenant (first tenant they belong to)
+	tenants, _ := s.tenantRepo.GetUserTenants(ctx, user.ID)
+	var tenantID uuid.UUID
+	if len(tenants) > 0 {
+		tenantID = tenants[0].ID
+	}
+
+	accessToken, err := s.jwtManager.GenerateAccessToken(user.ID, tenantID, user.Email, roles, permissions)
 	if err != nil {
 		return nil, err
 	}
@@ -104,13 +115,14 @@ func (s *AuthService) Login(ctx context.Context, input *LoginInput) (*LoginOutpu
 
 // RegisterInput represents the registration input
 type RegisterInput struct {
-	FirstName string
-	LastName  string
-	Email     string
-	Password  string
+	FirstName        string
+	LastName         string
+	Email            string
+	Password         string
+	OrganizationName string // Used to create the user's first tenant
 }
 
-// Register creates a new user account
+// Register creates a new user account with their own tenant
 func (s *AuthService) Register(ctx context.Context, input *RegisterInput) (*entity.User, error) {
 	// Check if email already exists
 	existingUser, err := s.userRepo.GetByEmail(ctx, input.Email)
@@ -152,15 +164,70 @@ func (s *AuthService) Register(ctx context.Context, input *RegisterInput) (*enti
 
 	// Assign default "user" role
 	defaultRole, err := s.roleRepo.GetByName(ctx, "user")
-	if err != nil {
-		// Log error but don't fail registration
-		return user, nil
-	}
-	if defaultRole != nil {
+	if err == nil && defaultRole != nil {
 		_ = s.userRepo.AssignRole(ctx, user.ID, defaultRole.ID)
 	}
 
+	// Create tenant for the user
+	orgName := input.OrganizationName
+	if orgName == "" {
+		orgName = user.FirstName + "'s Organization"
+	}
+
+	// Generate slug from organization name
+	slug := s.generateTenantSlug(orgName)
+
+	tenant := &entity.Tenant{
+		Name:     orgName,
+		Slug:     slug,
+		OwnerID:  user.ID,
+		Settings: entity.DefaultTenantSettings(),
+	}
+
+	if err := s.tenantRepo.Create(ctx, tenant); err != nil {
+		// Log error for debugging - tenant creation failure shouldn't block registration
+		// but we should know about it
+		fmt.Printf("WARNING: Failed to create tenant for user %s: %v\n", user.Email, err)
+		return user, nil
+	}
+
+	// Add user as owner of the tenant
+	membership := &entity.TenantMembership{
+		TenantID: tenant.ID,
+		UserID:   user.ID,
+		Role:     "owner",
+	}
+
+	if err := s.tenantRepo.AddMember(ctx, membership); err != nil {
+		fmt.Printf("WARNING: Failed to add membership for user %s: %v\n", user.Email, err)
+	}
+
 	return user, nil
+}
+
+// generateTenantSlug creates a URL-safe slug from organization name
+func (s *AuthService) generateTenantSlug(name string) string {
+	slug := ""
+	for _, c := range name {
+		if (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') {
+			slug += string(c)
+		} else if c >= 'A' && c <= 'Z' {
+			slug += string(c - 'A' + 'a')
+		} else if c == ' ' || c == '-' {
+			if len(slug) > 0 && slug[len(slug)-1] != '-' {
+				slug += "-"
+			}
+		}
+	}
+	// Trim trailing dash
+	if len(slug) > 0 && slug[len(slug)-1] == '-' {
+		slug = slug[:len(slug)-1]
+	}
+	// Ensure slug is unique by appending random suffix
+	if len(slug) < 3 {
+		slug = "org-" + slug
+	}
+	return slug
 }
 
 // RefreshToken generates new tokens from a refresh token
@@ -184,7 +251,14 @@ func (s *AuthService) RefreshToken(ctx context.Context, refreshToken string) (*L
 	}
 	permissions := user.GetPermissions()
 
-	newAccessToken, err := s.jwtManager.GenerateAccessToken(user.ID, user.Email, roles, permissions)
+	// Get user's default tenant
+	tenants, _ := s.tenantRepo.GetUserTenants(ctx, user.ID)
+	var tenantID uuid.UUID
+	if len(tenants) > 0 {
+		tenantID = tenants[0].ID
+	}
+
+	newAccessToken, err := s.jwtManager.GenerateAccessToken(user.ID, tenantID, user.Email, roles, permissions)
 	if err != nil {
 		return nil, err
 	}
@@ -558,7 +632,14 @@ func (s *AuthService) GoogleAuth(ctx context.Context, input *GoogleAuthInput) (*
 	}
 	permissions := user.GetPermissions()
 
-	accessToken, err := s.jwtManager.GenerateAccessToken(user.ID, user.Email, roles, permissions)
+	// Get user's default tenant
+	tenants, _ := s.tenantRepo.GetUserTenants(ctx, user.ID)
+	var tenantID uuid.UUID
+	if len(tenants) > 0 {
+		tenantID = tenants[0].ID
+	}
+
+	accessToken, err := s.jwtManager.GenerateAccessToken(user.ID, tenantID, user.Email, roles, permissions)
 	if err != nil {
 		return nil, err
 	}

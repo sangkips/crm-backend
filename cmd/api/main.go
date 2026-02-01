@@ -3,6 +3,7 @@ package main
 import (
 	"log"
 	"os"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/sangkips/investify-api/internal/application/service"
@@ -51,6 +52,7 @@ func main() {
 	// Initialize repositories
 	userRepo := repository.NewUserRepository(db)
 	roleRepo := repository.NewRoleRepository(db)
+	tenantRepo := repository.NewTenantRepository(db)
 	productRepo := repository.NewProductRepository(db)
 	categoryRepo := repository.NewCategoryRepository(db)
 	unitRepo := repository.NewUnitRepository(db)
@@ -89,7 +91,8 @@ func main() {
 	})
 
 	// Initialize services
-	authService := service.NewAuthService(userRepo, roleRepo, passwordResetRepo, jwtManager, emailService, googleOAuthService)
+	authService := service.NewAuthService(userRepo, roleRepo, tenantRepo, passwordResetRepo, jwtManager, emailService, googleOAuthService)
+	tenantService := service.NewTenantService(tenantRepo)
 	productService := service.NewProductService(productRepo, categoryRepo, unitRepo)
 	categoryService := service.NewCategoryService(categoryRepo)
 	unitService := service.NewUnitService(unitRepo)
@@ -97,13 +100,14 @@ func main() {
 	purchaseService := service.NewPurchaseService(purchaseRepo, purchaseDetailRepo, productRepo, supplierRepo)
 	customerService := service.NewCustomerService(customerRepo)
 	supplierService := service.NewSupplierService(supplierRepo)
-	dashboardService := service.NewDashboardService(orderRepo, purchaseRepo, productRepo, customerRepo, analyticsRepo)
+	dashboardService := service.NewDashboardService(orderRepo, purchaseRepo, productRepo, customerRepo, analyticsRepo, tenantRepo)
 	quotationService := service.NewQuotationService(quotationRepo, quotationDetailRepo, productRepo, customerRepo)
 	settingsService := service.NewSettingsService(settingsRepo)
 	userService := service.NewUserService(userRepo, roleRepo, permissionRepo)
 
 	// Initialize handlers
 	authHandler := handler.NewAuthHandler(authService)
+	tenantHandler := handler.NewTenantHandler(tenantService)
 	productHandler := handler.NewProductHandler(productService)
 	categoryHandler := handler.NewCategoryHandler(categoryService)
 	unitHandler := handler.NewUnitHandler(unitService)
@@ -151,6 +155,15 @@ func main() {
 		// Protected routes (authentication required)
 		protected := v1.Group("")
 		protected.Use(middleware.AuthMiddleware(jwtManager))
+
+		// Initialize per-tenant rate limiter
+		rateLimiter := middleware.NewTenantRateLimiter(middleware.RateLimiterConfig{
+			RequestsPerSecond: float64(cfg.RateLimit.Requests) / float64(cfg.RateLimit.Duration),
+			BurstSize:         cfg.RateLimit.Requests,
+			CleanupInterval:   5 * time.Minute,
+			EntryTTL:          10 * time.Minute,
+		})
+		protected.Use(rateLimiter.Middleware())
 		{
 			// Auth/Profile routes
 			protected.POST("/auth/logout", authHandler.Logout)
@@ -164,6 +177,18 @@ func main() {
 
 			// Dashboard
 			protected.GET("/dashboard", dashboardHandler.GetStats)
+
+			// Tenants
+			tenants := protected.Group("/tenants")
+			{
+				tenants.GET("", tenantHandler.ListTenants)
+				tenants.GET("/current", tenantHandler.GetCurrentTenant)
+				tenants.PUT("/current", tenantHandler.UpdateTenant)
+				tenants.GET("/current/members", tenantHandler.ListMembers)
+				tenants.POST("/current/members", tenantHandler.InviteMember)
+				tenants.PUT("/current/members/:user_id", tenantHandler.UpdateMemberRole)
+				tenants.DELETE("/current/members/:user_id", tenantHandler.RemoveMember)
+			}
 
 			// Products
 			products := protected.Group("/products")
@@ -295,6 +320,14 @@ func main() {
 			permissions.Use(middleware.RequirePermission("manage-users"))
 			{
 				permissions.GET("", userHandler.ListPermissions)
+			}
+
+			// Super Admin routes
+			admin := protected.Group("/admin")
+			admin.Use(middleware.RequireRole("super-admin"))
+			{
+				// Tenant user assignment for super admins
+				admin.POST("/tenants/assign-user", tenantHandler.AssignUserToTenant)
 			}
 		}
 	}

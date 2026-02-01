@@ -3,6 +3,7 @@ package handler
 import (
 	"github.com/gin-gonic/gin"
 	"github.com/sangkips/investify-api/internal/application/service"
+	infraRepo "github.com/sangkips/investify-api/internal/infrastructure/repository"
 	"github.com/sangkips/investify-api/internal/presentation/http/dto/response"
 )
 
@@ -24,7 +25,13 @@ func (h *DashboardHandler) GetStats(c *gin.Context) {
 		return
 	}
 
-	stats, err := h.dashboardService.GetDashboardStats(c.Request.Context(), *userID)
+	// For super admins, skip tenant scope to see all data across tenants
+	ctx := c.Request.Context()
+	if IsSuperAdmin(c) {
+		ctx = infraRepo.WithSkipTenantScope(ctx, true)
+	}
+
+	stats, err := h.dashboardService.GetDashboardStats(ctx, *userID)
 	if err != nil {
 		response.Error(c, err)
 		return

@@ -12,6 +12,7 @@ import (
 // Order represents a sales order
 type Order struct {
 	ID            uuid.UUID        `gorm:"type:uuid;primary_key" json:"id"`
+	TenantID      uuid.UUID        `gorm:"type:uuid;not null;index" json:"tenant_id"`
 	UserID        uuid.UUID        `gorm:"type:uuid;not null;index" json:"user_id"`
 	CustomerID    *uuid.UUID       `gorm:"type:uuid;index" json:"customer_id,omitempty"`
 	OrderDate     time.Time        `gorm:"type:date;not null" json:"order_date"`
@@ -29,6 +30,7 @@ type Order struct {
 	DeletedAt     gorm.DeletedAt   `gorm:"index" json:"-"`
 
 	// Relationships
+	Tenant   Tenant        `gorm:"foreignKey:TenantID" json:"-"`
 	User     User          `gorm:"foreignKey:UserID" json:"-"`
 	Customer *Customer     `gorm:"foreignKey:CustomerID" json:"customer,omitempty"`
 	Details  []OrderDetail `gorm:"foreignKey:OrderID" json:"details,omitempty"`

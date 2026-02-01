@@ -11,6 +11,7 @@ import (
 // Quotation represents a price quotation for a customer
 type Quotation struct {
 	ID                 uuid.UUID            `gorm:"type:uuid;primary_key" json:"id"`
+	TenantID           uuid.UUID            `gorm:"type:uuid;not null;index" json:"tenant_id"`
 	UserID             uuid.UUID            `gorm:"type:uuid;not null;index" json:"user_id"`
 	CustomerID         *uuid.UUID           `gorm:"type:uuid;index" json:"customer_id,omitempty"`
 	Date               time.Time            `gorm:"type:date;not null" json:"date"`
@@ -29,6 +30,7 @@ type Quotation struct {
 	DeletedAt          gorm.DeletedAt       `gorm:"index" json:"-"`
 
 	// Relationships
+	Tenant   Tenant            `gorm:"foreignKey:TenantID" json:"-"`
 	User     User              `gorm:"foreignKey:UserID" json:"-"`
 	Customer *Customer         `gorm:"foreignKey:CustomerID" json:"customer,omitempty"`
 	Details  []QuotationDetail `gorm:"foreignKey:QuotationID" json:"details,omitempty"`

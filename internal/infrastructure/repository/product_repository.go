@@ -27,6 +27,7 @@ func (r *productRepository) Create(ctx context.Context, product *entity.Product)
 func (r *productRepository) GetByID(ctx context.Context, id uuid.UUID) (*entity.Product, error) {
 	var product entity.Product
 	err := r.db.WithContext(ctx).
+		Scopes(TenantScope(ctx)).
 		Preload("Category").Preload("Unit").
 		First(&product, "id = ?", id).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -38,6 +39,7 @@ func (r *productRepository) GetByID(ctx context.Context, id uuid.UUID) (*entity.
 func (r *productRepository) GetBySlug(ctx context.Context, slug string) (*entity.Product, error) {
 	var product entity.Product
 	err := r.db.WithContext(ctx).
+		Scopes(TenantScope(ctx)).
 		Preload("Category").Preload("Unit").
 		First(&product, "slug = ?", slug).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -53,6 +55,7 @@ func (r *productRepository) GetByIDs(ctx context.Context, ids []uuid.UUID) ([]en
 	}
 	var products []entity.Product
 	err := r.db.WithContext(ctx).
+		Scopes(TenantScope(ctx)).
 		Preload("Category").Preload("Unit").
 		Where("id IN ?", ids).
 		Find(&products).Error
@@ -61,7 +64,7 @@ func (r *productRepository) GetByIDs(ctx context.Context, ids []uuid.UUID) ([]en
 
 func (r *productRepository) GetByCode(ctx context.Context, code string) (*entity.Product, error) {
 	var product entity.Product
-	err := r.db.WithContext(ctx).First(&product, "code = ?", code).Error
+	err := r.db.WithContext(ctx).Scopes(TenantScope(ctx)).First(&product, "code = ?", code).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, nil
 	}
@@ -80,8 +83,9 @@ func (r *productRepository) List(ctx context.Context, userID uuid.UUID, params *
 	var products []entity.Product
 	var total int64
 
-	query := r.db.WithContext(ctx).Model(&entity.Product{})
-	if !params.SkipUserFilter {
+	query := r.db.WithContext(ctx).Model(&entity.Product{}).Scopes(TenantScope(ctx))
+	// Optional user filter within tenant
+	if !params.SkipUserFilter && userID != uuid.Nil {
 		query = query.Where("user_id = ?", userID)
 	}
 
@@ -127,10 +131,12 @@ func (r *productRepository) List(ctx context.Context, userID uuid.UUID, params *
 
 func (r *productRepository) GetLowStock(ctx context.Context, userID uuid.UUID) ([]entity.Product, error) {
 	var products []entity.Product
-	err := r.db.WithContext(ctx).
-		Where("user_id = ? AND quantity <= quantity_alert", userID).
-		Preload("Category").Preload("Unit").
-		Find(&products).Error
+	query := r.db.WithContext(ctx).Scopes(TenantScope(ctx)).
+		Where("quantity <= quantity_alert")
+	if userID != uuid.Nil {
+		query = query.Where("user_id = ?", userID)
+	}
+	err := query.Preload("Category").Preload("Unit").Find(&products).Error
 	return products, err
 }
 
@@ -295,7 +301,7 @@ func (r *categoryRepository) Create(ctx context.Context, category *entity.Catego
 
 func (r *categoryRepository) GetByID(ctx context.Context, id uuid.UUID) (*entity.Category, error) {
 	var category entity.Category
-	err := r.db.WithContext(ctx).First(&category, "id = ?", id).Error
+	err := r.db.WithContext(ctx).Scopes(TenantScope(ctx)).First(&category, "id = ?", id).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, nil
 	}
@@ -304,7 +310,7 @@ func (r *categoryRepository) GetByID(ctx context.Context, id uuid.UUID) (*entity
 
 func (r *categoryRepository) GetBySlug(ctx context.Context, slug string) (*entity.Category, error) {
 	var category entity.Category
-	err := r.db.WithContext(ctx).First(&category, "slug = ?", slug).Error
+	err := r.db.WithContext(ctx).Scopes(TenantScope(ctx)).First(&category, "slug = ?", slug).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, nil
 	}
@@ -323,8 +329,8 @@ func (r *categoryRepository) List(ctx context.Context, userID uuid.UUID, params 
 	var categories []entity.Category
 	var total int64
 
-	query := r.db.WithContext(ctx).Model(&entity.Category{})
-	if !skipUserFilter {
+	query := r.db.WithContext(ctx).Model(&entity.Category{}).Scopes(TenantScope(ctx))
+	if !skipUserFilter && userID != uuid.Nil {
 		query = query.Where("user_id = ?", userID)
 	}
 
@@ -359,7 +365,7 @@ func (r *unitRepository) Create(ctx context.Context, unit *entity.Unit) error {
 
 func (r *unitRepository) GetByID(ctx context.Context, id uuid.UUID) (*entity.Unit, error) {
 	var unit entity.Unit
-	err := r.db.WithContext(ctx).First(&unit, "id = ?", id).Error
+	err := r.db.WithContext(ctx).Scopes(TenantScope(ctx)).First(&unit, "id = ?", id).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, nil
 	}
@@ -368,7 +374,7 @@ func (r *unitRepository) GetByID(ctx context.Context, id uuid.UUID) (*entity.Uni
 
 func (r *unitRepository) GetBySlug(ctx context.Context, slug string) (*entity.Unit, error) {
 	var unit entity.Unit
-	err := r.db.WithContext(ctx).First(&unit, "slug = ?", slug).Error
+	err := r.db.WithContext(ctx).Scopes(TenantScope(ctx)).First(&unit, "slug = ?", slug).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, nil
 	}
@@ -387,8 +393,8 @@ func (r *unitRepository) List(ctx context.Context, userID uuid.UUID, params *pag
 	var units []entity.Unit
 	var total int64
 
-	query := r.db.WithContext(ctx).Model(&entity.Unit{})
-	if !skipUserFilter {
+	query := r.db.WithContext(ctx).Model(&entity.Unit{}).Scopes(TenantScope(ctx))
+	if !skipUserFilter && userID != uuid.Nil {
 		query = query.Where("user_id = ?", userID)
 	}
 

@@ -28,6 +28,7 @@ func (r *purchaseRepository) Create(ctx context.Context, purchase *entity.Purcha
 func (r *purchaseRepository) GetByID(ctx context.Context, id uuid.UUID) (*entity.Purchase, error) {
 	var purchase entity.Purchase
 	err := r.db.WithContext(ctx).
+		Scopes(TenantScope(ctx)).
 		Preload("Supplier").
 		Preload("CreatedBy").
 		First(&purchase, "id = ?", id).Error
@@ -39,7 +40,7 @@ func (r *purchaseRepository) GetByID(ctx context.Context, id uuid.UUID) (*entity
 
 func (r *purchaseRepository) GetByPurchaseNo(ctx context.Context, purchaseNo string) (*entity.Purchase, error) {
 	var purchase entity.Purchase
-	err := r.db.WithContext(ctx).First(&purchase, "purchase_no = ?", purchaseNo).Error
+	err := r.db.WithContext(ctx).Scopes(TenantScope(ctx)).First(&purchase, "purchase_no = ?", purchaseNo).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, nil
 	}
@@ -58,8 +59,8 @@ func (r *purchaseRepository) List(ctx context.Context, userID uuid.UUID, params 
 	var purchases []entity.Purchase
 	var total int64
 
-	query := r.db.WithContext(ctx).Model(&entity.Purchase{})
-	if !params.SkipUserFilter {
+	query := r.db.WithContext(ctx).Model(&entity.Purchase{}).Scopes(TenantScope(ctx))
+	if !params.SkipUserFilter && userID != uuid.Nil {
 		query = query.Where("user_id = ?", userID)
 	}
 
@@ -109,6 +110,7 @@ func (r *purchaseRepository) List(ctx context.Context, userID uuid.UUID, params 
 func (r *purchaseRepository) GetWithDetails(ctx context.Context, id uuid.UUID) (*entity.Purchase, error) {
 	var purchase entity.Purchase
 	err := r.db.WithContext(ctx).
+		Scopes(TenantScope(ctx)).
 		Preload("Supplier").
 		Preload("CreatedBy").
 		Preload("UpdatedBy").
@@ -133,8 +135,11 @@ func (r *purchaseRepository) GetPendingPurchases(ctx context.Context, userID uui
 	var purchases []entity.Purchase
 	var total int64
 
-	query := r.db.WithContext(ctx).Model(&entity.Purchase{}).
-		Where("user_id = ? AND status = ?", userID, enum.PurchaseStatusPending)
+	query := r.db.WithContext(ctx).Model(&entity.Purchase{}).Scopes(TenantScope(ctx)).
+		Where("status = ?", enum.PurchaseStatusPending)
+	if userID != uuid.Nil {
+		query = query.Where("user_id = ?", userID)
+	}
 
 	if err := query.Count(&total).Error; err != nil {
 		return nil, 0, err

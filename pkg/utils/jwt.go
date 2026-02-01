@@ -11,6 +11,7 @@ import (
 // JWTClaims represents the claims in a JWT token
 type JWTClaims struct {
 	UserID      uuid.UUID `json:"user_id"`
+	TenantID    uuid.UUID `json:"tenant_id"`
 	Email       string    `json:"email"`
 	Roles       []string  `json:"roles"`
 	Permissions []string  `json:"permissions"`
@@ -33,10 +34,11 @@ func NewJWTManager(secret string, accessExpiry, refreshExpiry time.Duration) *JW
 	}
 }
 
-// GenerateAccessToken generates a new access token
-func (m *JWTManager) GenerateAccessToken(userID uuid.UUID, email string, roles, permissions []string) (string, error) {
+// GenerateAccessToken generates a new access token with tenant context
+func (m *JWTManager) GenerateAccessToken(userID, tenantID uuid.UUID, email string, roles, permissions []string) (string, error) {
 	claims := &JWTClaims{
 		UserID:      userID,
+		TenantID:    tenantID,
 		Email:       email,
 		Roles:       roles,
 		Permissions: permissions,

@@ -43,6 +43,9 @@ func AuthMiddleware(jwtManager *utils.JWTManager) gin.HandlerFunc {
 		c.Set("user_roles", claims.Roles)
 		c.Set("user_permissions", claims.Permissions)
 
+		// Set tenant_id from JWT claims
+		c.Set("tenant_id", claims.TenantID)
+
 		c.Next()
 	}
 }
