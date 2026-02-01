@@ -6,6 +6,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/sangkips/investify-api/internal/domain/entity"
 	"github.com/sangkips/investify-api/internal/domain/repository"
+	infraRepo "github.com/sangkips/investify-api/internal/infrastructure/repository"
 	"github.com/sangkips/investify-api/pkg/apperror"
 	"github.com/sangkips/investify-api/pkg/pagination"
 	"github.com/sangkips/investify-api/pkg/utils"
@@ -29,6 +30,12 @@ type CreateCategoryInput struct {
 
 // CreateCategory creates a new category
 func (s *CategoryService) CreateCategory(ctx context.Context, input *CreateCategoryInput) (*entity.Category, error) {
+	// Extract tenant ID from context
+	tenantID, ok := infraRepo.GetTenantID(ctx)
+	if !ok {
+		return nil, apperror.NewBadRequestError("Tenant context required")
+	}
+
 	slug := utils.Slugify(input.Name)
 
 	// Check if slug already exists
@@ -41,9 +48,10 @@ func (s *CategoryService) CreateCategory(ctx context.Context, input *CreateCateg
 	}
 
 	category := &entity.Category{
-		UserID: input.UserID,
-		Name:   input.Name,
-		Slug:   slug,
+		TenantID: tenantID,
+		UserID:   input.UserID,
+		Name:     input.Name,
+		Slug:     slug,
 	}
 
 	if err := s.categoryRepo.Create(ctx, category); err != nil {
@@ -157,6 +165,12 @@ type CreateUnitInput struct {
 
 // CreateUnit creates a new unit
 func (s *UnitService) CreateUnit(ctx context.Context, input *CreateUnitInput) (*entity.Unit, error) {
+	// Extract tenant ID from context
+	tenantID, ok := infraRepo.GetTenantID(ctx)
+	if !ok {
+		return nil, apperror.NewBadRequestError("Tenant context required")
+	}
+
 	slug := utils.Slugify(input.Name)
 
 	existing, err := s.unitRepo.GetBySlug(ctx, slug)
@@ -168,6 +182,7 @@ func (s *UnitService) CreateUnit(ctx context.Context, input *CreateUnitInput) (*
 	}
 
 	unit := &entity.Unit{
+		TenantID:  tenantID,
 		UserID:    input.UserID,
 		Name:      input.Name,
 		Slug:      slug,

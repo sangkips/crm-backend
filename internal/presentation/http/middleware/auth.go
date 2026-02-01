@@ -5,6 +5,8 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
+	infraRepo "github.com/sangkips/investify-api/internal/infrastructure/repository"
 	"github.com/sangkips/investify-api/internal/presentation/http/dto/response"
 	"github.com/sangkips/investify-api/pkg/utils"
 )
@@ -43,8 +45,15 @@ func AuthMiddleware(jwtManager *utils.JWTManager) gin.HandlerFunc {
 		c.Set("user_roles", claims.Roles)
 		c.Set("user_permissions", claims.Permissions)
 
-		// Set tenant_id from JWT claims
+		// Set tenant_id from JWT claims in Gin context
 		c.Set("tenant_id", claims.TenantID)
+
+		// Also set tenant_id in request context (for services/repositories)
+		// Only set if the tenant ID is valid (not nil)
+		if claims.TenantID != uuid.Nil {
+			ctx := infraRepo.WithTenant(c.Request.Context(), claims.TenantID)
+			c.Request = c.Request.WithContext(ctx)
+		}
 
 		c.Next()
 	}

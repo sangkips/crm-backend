@@ -7,6 +7,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/sangkips/investify-api/internal/domain/repository"
+	infraRepo "github.com/sangkips/investify-api/internal/infrastructure/repository"
 	"github.com/sangkips/investify-api/internal/presentation/http/dto/response"
 )
 
@@ -60,8 +61,14 @@ func TenantMiddleware(tenantRepo repository.TenantRepository) gin.HandlerFunc {
 			}
 		}
 
+		// Set tenant ID in Gin context (for middleware/handlers)
 		c.Set("tenant_id", tenant.ID)
 		c.Set("tenant", tenant)
+
+		// Also set tenant ID in request context (for services/repositories)
+		ctx := infraRepo.WithTenant(c.Request.Context(), tenant.ID)
+		c.Request = c.Request.WithContext(ctx)
+
 		c.Next()
 	}
 }
