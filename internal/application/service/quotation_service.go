@@ -9,6 +9,7 @@ import (
 	"github.com/sangkips/investify-api/internal/domain/entity"
 	"github.com/sangkips/investify-api/internal/domain/enum"
 	"github.com/sangkips/investify-api/internal/domain/repository"
+	infraRepo "github.com/sangkips/investify-api/internal/infrastructure/repository"
 	"github.com/sangkips/investify-api/pkg/apperror"
 	"github.com/sangkips/investify-api/pkg/pagination"
 )
@@ -58,6 +59,12 @@ type QuotationItemInput struct {
 
 // CreateQuotation creates a new quotation
 func (s *QuotationService) CreateQuotation(ctx context.Context, input *CreateQuotationInput) (*entity.Quotation, error) {
+	// Extract tenant ID from context
+	tenantID, ok := infraRepo.GetTenantID(ctx)
+	if !ok {
+		return nil, apperror.NewBadRequestError("Tenant context required")
+	}
+
 	// Generate reference number
 	nextNum, err := s.quotationRepo.GetNextReferenceNumber(ctx)
 	if err != nil {
@@ -89,6 +96,7 @@ func (s *QuotationService) CreateQuotation(ctx context.Context, input *CreateQuo
 	totalAmount := subtotal + taxAmount - discountAmount + input.ShippingAmount
 
 	quotation := &entity.Quotation{
+		TenantID:           tenantID,
 		UserID:             input.UserID,
 		CustomerID:         input.CustomerID,
 		Date:               input.Date,

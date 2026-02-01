@@ -7,6 +7,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/sangkips/investify-api/internal/domain/entity"
 	"github.com/sangkips/investify-api/internal/domain/repository"
+	infraRepo "github.com/sangkips/investify-api/internal/infrastructure/repository"
 	"github.com/sangkips/investify-api/pkg/apperror"
 	"github.com/sangkips/investify-api/pkg/pagination"
 )
@@ -36,7 +37,14 @@ type CreateCustomerInput struct {
 
 // CreateCustomer creates a new customer
 func (s *CustomerService) CreateCustomer(ctx context.Context, input *CreateCustomerInput) (*entity.Customer, error) {
+	// Extract tenant ID from context
+	tenantID, ok := infraRepo.GetTenantID(ctx)
+	if !ok {
+		return nil, apperror.NewBadRequestError("Tenant context required")
+	}
+
 	customer := &entity.Customer{
+		TenantID:      tenantID,
 		UserID:        input.UserID,
 		Name:          input.Name,
 		Email:         input.Email,
@@ -205,7 +213,14 @@ type CreateSupplierInput struct {
 
 // CreateSupplier creates a new supplier
 func (s *SupplierService) CreateSupplier(ctx context.Context, input *CreateSupplierInput) (*entity.Supplier, error) {
+	// Extract tenant ID from context
+	tenantID, ok := infraRepo.GetTenantID(ctx)
+	if !ok {
+		return nil, apperror.NewBadRequestError("Tenant context required")
+	}
+
 	supplier := &entity.Supplier{
+		TenantID:      tenantID,
 		UserID:        input.UserID,
 		Name:          input.Name,
 		Email:         input.Email,

@@ -9,6 +9,7 @@ import (
 	"github.com/sangkips/investify-api/internal/domain/entity"
 	"github.com/sangkips/investify-api/internal/domain/enum"
 	"github.com/sangkips/investify-api/internal/domain/repository"
+	infraRepo "github.com/sangkips/investify-api/internal/infrastructure/repository"
 	"github.com/sangkips/investify-api/pkg/apperror"
 	"github.com/sangkips/investify-api/pkg/pagination"
 )
@@ -54,6 +55,12 @@ type CreateOrderInput struct {
 
 // CreateOrder creates a new order with its details
 func (s *OrderService) CreateOrder(ctx context.Context, input *CreateOrderInput) (*entity.Order, error) {
+	// Extract tenant ID from context
+	tenantID, ok := infraRepo.GetTenantID(ctx)
+	if !ok {
+		return nil, apperror.NewBadRequestError("Tenant context required")
+	}
+
 	// Validate customer if provided
 	if input.CustomerID != nil {
 		customer, err := s.customerRepo.GetByID(ctx, *input.CustomerID)
@@ -159,6 +166,7 @@ func (s *OrderService) CreateOrder(ctx context.Context, input *CreateOrderInput)
 	invoiceNo := fmt.Sprintf("INV-%s", uuid.New().String()[:8])
 
 	order := &entity.Order{
+		TenantID:      tenantID,
 		UserID:        input.UserID,
 		CustomerID:    input.CustomerID,
 		OrderDate:     time.Now(),

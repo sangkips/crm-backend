@@ -8,6 +8,7 @@ import (
 	"github.com/sangkips/investify-api/internal/domain/entity"
 	"github.com/sangkips/investify-api/internal/domain/enum"
 	"github.com/sangkips/investify-api/internal/domain/repository"
+	infraRepo "github.com/sangkips/investify-api/internal/infrastructure/repository"
 	"github.com/sangkips/investify-api/pkg/apperror"
 	"github.com/sangkips/investify-api/pkg/pagination"
 	"github.com/sangkips/investify-api/pkg/utils"
@@ -51,6 +52,12 @@ type CreateProductInput struct {
 
 // CreateProduct creates a new product
 func (s *ProductService) CreateProduct(ctx context.Context, input *CreateProductInput) (*entity.Product, error) {
+	// Extract tenant ID from context
+	tenantID, ok := infraRepo.GetTenantID(ctx)
+	if !ok {
+		return nil, apperror.NewBadRequestError("Tenant context required")
+	}
+
 	// Auto-generate code if not provided
 	code := input.Code
 	if code == "" {
@@ -70,6 +77,7 @@ func (s *ProductService) CreateProduct(ctx context.Context, input *CreateProduct
 	slug := utils.Slugify(input.Name)
 
 	product := &entity.Product{
+		TenantID:      tenantID,
 		UserID:        input.UserID,
 		CategoryID:    input.CategoryID,
 		UnitID:        input.UnitID,

@@ -9,6 +9,7 @@ import (
 	"github.com/sangkips/investify-api/internal/domain/entity"
 	"github.com/sangkips/investify-api/internal/domain/enum"
 	"github.com/sangkips/investify-api/internal/domain/repository"
+	infraRepo "github.com/sangkips/investify-api/internal/infrastructure/repository"
 	"github.com/sangkips/investify-api/pkg/apperror"
 	"github.com/sangkips/investify-api/pkg/pagination"
 )
@@ -53,6 +54,12 @@ type CreatePurchaseInput struct {
 
 // CreatePurchase creates a new purchase with its details
 func (s *PurchaseService) CreatePurchase(ctx context.Context, input *CreatePurchaseInput) (*entity.Purchase, error) {
+	// Extract tenant ID from context
+	tenantID, ok := infraRepo.GetTenantID(ctx)
+	if !ok {
+		return nil, apperror.NewBadRequestError("Tenant context required")
+	}
+
 	// Validate supplier if provided
 	if input.SupplierID != nil {
 		supplier, err := s.supplierRepo.GetByID(ctx, *input.SupplierID)
@@ -110,6 +117,7 @@ func (s *PurchaseService) CreatePurchase(ctx context.Context, input *CreatePurch
 	purchaseNo := fmt.Sprintf("PUR-%s", uuid.New().String()[:8])
 
 	purchase := &entity.Purchase{
+		TenantID:      tenantID,
 		UserID:        input.UserID,
 		SupplierID:    input.SupplierID,
 		CreatedByID:   &input.UserID,
