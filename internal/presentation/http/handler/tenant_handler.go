@@ -19,6 +19,38 @@ func NewTenantHandler(tenantService *service.TenantService) *TenantHandler {
 	return &TenantHandler{tenantService: tenantService}
 }
 
+// Create handles creating a new tenant
+func (h *TenantHandler) Create(c *gin.Context) {
+	userID := GetUserID(c)
+	if userID == nil {
+		response.Unauthorized(c, "User not authenticated")
+		return
+	}
+
+	var req struct {
+		Name string `json:"name" binding:"required"`
+		Slug string `json:"slug"` // Optional
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Invalid request body")
+		return
+	}
+
+	tenant, err := h.tenantService.CreateTenant(c.Request.Context(), &service.CreateTenantInput{
+		Name:    req.Name,
+		Slug:    req.Slug,
+		OwnerID: *userID,
+	})
+	if err != nil {
+		response.Error(c, err)
+		return
+	}
+
+	response.Created(c, "Tenant created successfully", gin.H{
+		"tenant": tenant,
+	})
+}
+
 // GetCurrentTenant returns the current user's active tenant
 func (h *TenantHandler) GetCurrentTenant(c *gin.Context) {
 	tenantID := middleware.GetTenantID(c)

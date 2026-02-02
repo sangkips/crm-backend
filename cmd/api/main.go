@@ -182,6 +182,7 @@ func main() {
 			tenants := protected.Group("/tenants")
 			{
 				tenants.GET("", tenantHandler.ListTenants)
+				tenants.POST("", tenantHandler.Create)
 				tenants.GET("/current", tenantHandler.GetCurrentTenant)
 				tenants.PUT("/current", tenantHandler.UpdateTenant)
 				tenants.GET("/current/members", tenantHandler.ListMembers)

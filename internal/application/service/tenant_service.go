@@ -3,6 +3,9 @@ package service
 import (
 	"context"
 
+	"crypto/rand"
+	"encoding/hex"
+
 	"github.com/google/uuid"
 	"github.com/sangkips/investify-api/internal/domain/entity"
 	"github.com/sangkips/investify-api/internal/domain/repository"
@@ -29,13 +32,25 @@ type CreateTenantInput struct {
 
 // CreateTenant creates a new tenant
 func (s *TenantService) CreateTenant(ctx context.Context, input *CreateTenantInput) (*entity.Tenant, error) {
+	// Generate slug if not provided
+	slug := input.Slug
+	if slug == "" {
+		slug = s.generateTenantSlug(input.Name)
+	}
+
 	// Check if slug already exists
-	existing, err := s.tenantRepo.GetBySlug(ctx, input.Slug)
+	existing, err := s.tenantRepo.GetBySlug(ctx, slug)
 	if err != nil {
 		return nil, err
 	}
 	if existing != nil {
-		return nil, apperror.NewConflictError("Tenant slug already exists")
+		if input.Slug != "" {
+			return nil, apperror.NewConflictError("Tenant slug already exists")
+		}
+		// If auto-generated slug exists, try appending randomness
+		randomBytes := make([]byte, 4)
+		rand.Read(randomBytes)
+		slug = slug + "-" + hex.EncodeToString(randomBytes)
 	}
 
 	settings := entity.DefaultTenantSettings()
@@ -45,7 +60,7 @@ func (s *TenantService) CreateTenant(ctx context.Context, input *CreateTenantInp
 
 	tenant := &entity.Tenant{
 		Name:     input.Name,
-		Slug:     input.Slug,
+		Slug:     slug,
 		OwnerID:  input.OwnerID,
 		Settings: settings,
 	}
@@ -63,6 +78,31 @@ func (s *TenantService) CreateTenant(ctx context.Context, input *CreateTenantInp
 	_ = s.tenantRepo.AddMember(ctx, membership)
 
 	return tenant, nil
+}
+
+// generateTenantSlug creates a URL-safe slug from organization name
+func (s *TenantService) generateTenantSlug(name string) string {
+	slug := ""
+	for _, c := range name {
+		if (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') {
+			slug += string(c)
+		} else if c >= 'A' && c <= 'Z' {
+			slug += string(c - 'A' + 'a')
+		} else if c == ' ' || c == '-' {
+			if len(slug) > 0 && slug[len(slug)-1] != '-' {
+				slug += "-"
+			}
+		}
+	}
+	// Trim trailing dash
+	if len(slug) > 0 && slug[len(slug)-1] == '-' {
+		slug = slug[:len(slug)-1]
+	}
+	// Ensure slug is unique by appending random suffix
+	if len(slug) < 3 {
+		slug = "org-" + slug
+	}
+	return slug
 }
 
 // GetTenant retrieves a tenant by ID
