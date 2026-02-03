@@ -504,6 +504,7 @@ type GoogleAuthOutput struct {
 	AccessToken  string
 	RefreshToken string
 	IsNewUser    bool
+	HasTenants   bool
 }
 
 // GetGoogleAuthURL returns the Google OAuth consent URL
@@ -654,5 +655,6 @@ func (s *AuthService) GoogleAuth(ctx context.Context, input *GoogleAuthInput) (*
 		AccessToken:  accessToken,
 		RefreshToken: refreshToken,
 		IsNewUser:    isNewUser,
+		HasTenants:   len(tenants) > 0,
 	}, nil
 }
