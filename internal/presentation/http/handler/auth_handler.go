@@ -335,6 +335,9 @@ func (h *AuthHandler) GoogleCallback(c *gin.Context) {
 	if output.IsNewUser {
 		q.Set("is_new_user", "true")
 	}
+	if !output.HasTenants {
+		q.Set("needs_tenant", "true")
+	}
 	successURLParsed.RawQuery = q.Encode()
 
 	c.Redirect(302, successURLParsed.String())
