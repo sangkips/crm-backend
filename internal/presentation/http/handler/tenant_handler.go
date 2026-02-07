@@ -52,21 +52,43 @@ func (h *TenantHandler) Create(c *gin.Context) {
 }
 
 // GetCurrentTenant returns the current user's active tenant
+// If no tenant is set in context, it retrieves the user's first/default tenant
 func (h *TenantHandler) GetCurrentTenant(c *gin.Context) {
+	// First try to get tenant from middleware context (for subdomain-based routing)
 	tenantID := middleware.GetTenantID(c)
-	if tenantID == uuid.Nil {
-		response.BadRequest(c, "No active tenant")
+	if tenantID != uuid.Nil {
+		tenant, err := h.tenantService.GetTenant(c.Request.Context(), tenantID)
+		if err != nil {
+			response.Error(c, err)
+			return
+		}
+		response.OK(c, "Tenant retrieved successfully", gin.H{
+			"tenant": tenant,
+		})
 		return
 	}
 
-	tenant, err := h.tenantService.GetTenant(c.Request.Context(), tenantID)
+	// Fallback: Get user's tenants and return the first one (default)
+	userID := GetUserID(c)
+	if userID == nil {
+		response.Unauthorized(c, "User not authenticated")
+		return
+	}
+
+	tenants, err := h.tenantService.GetUserTenants(c.Request.Context(), *userID)
 	if err != nil {
 		response.Error(c, err)
 		return
 	}
 
+	if len(tenants) == 0 {
+		response.NotFound(c, "No tenant found for user")
+		return
+	}
+
+	// Return the first tenant as the current/default tenant
 	response.OK(c, "Tenant retrieved successfully", gin.H{
-		"tenant": tenant,
+		"tenant": tenants[0],
 	})
 }
 
