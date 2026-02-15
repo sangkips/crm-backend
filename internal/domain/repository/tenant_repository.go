@@ -5,6 +5,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/sangkips/investify-api/internal/domain/entity"
+	"github.com/sangkips/investify-api/pkg/pagination"
 )
 
 // TenantRepository defines the interface for tenant data operations
@@ -24,8 +25,8 @@ type TenantRepository interface {
 	// Delete soft-deletes a tenant
 	Delete(ctx context.Context, id uuid.UUID) error
 
-	// GetUserTenants retrieves all tenants a user belongs to
-	GetUserTenants(ctx context.Context, userID uuid.UUID) ([]entity.Tenant, error)
+	// GetUserTenants retrieves all tenants a user belongs to with pagination
+	GetUserTenants(ctx context.Context, userID uuid.UUID, params *pagination.PaginationParams) ([]entity.Tenant, int64, error)
 
 	// AddMember adds a user as a member of a tenant
 	AddMember(ctx context.Context, membership *entity.TenantMembership) error
@@ -49,7 +50,7 @@ type TenantRepository interface {
 	SlugExists(ctx context.Context, slug string) (bool, error)
 
 	// ListAll retrieves all tenants (for super admin use)
-	ListAll(ctx context.Context) ([]entity.Tenant, error)
+	ListAll(ctx context.Context, params *pagination.PaginationParams) ([]entity.Tenant, int64, error)
 
 	// Count returns the total number of tenants
 	Count(ctx context.Context) (int64, error)

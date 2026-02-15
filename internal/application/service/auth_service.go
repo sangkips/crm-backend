@@ -14,6 +14,7 @@ import (
 	"github.com/sangkips/investify-api/pkg/apperror"
 	"github.com/sangkips/investify-api/pkg/email"
 	"github.com/sangkips/investify-api/pkg/oauth"
+	"github.com/sangkips/investify-api/pkg/pagination"
 	"github.com/sangkips/investify-api/pkg/utils"
 )
 
@@ -90,7 +91,7 @@ func (s *AuthService) Login(ctx context.Context, input *LoginInput) (*LoginOutpu
 	permissions := user.GetPermissions()
 
 	// Get user's default tenant (first tenant they belong to)
-	tenants, _ := s.tenantRepo.GetUserTenants(ctx, user.ID)
+	tenants, _, _ := s.tenantRepo.GetUserTenants(ctx, user.ID, &pagination.PaginationParams{Page: 1, PerPage: 1})
 	var tenantID uuid.UUID
 	if len(tenants) > 0 {
 		tenantID = tenants[0].ID
@@ -252,7 +253,7 @@ func (s *AuthService) RefreshToken(ctx context.Context, refreshToken string) (*L
 	permissions := user.GetPermissions()
 
 	// Get user's default tenant
-	tenants, _ := s.tenantRepo.GetUserTenants(ctx, user.ID)
+	tenants, _, _ := s.tenantRepo.GetUserTenants(ctx, user.ID, &pagination.PaginationParams{Page: 1, PerPage: 1})
 	var tenantID uuid.UUID
 	if len(tenants) > 0 {
 		tenantID = tenants[0].ID
@@ -634,7 +635,7 @@ func (s *AuthService) GoogleAuth(ctx context.Context, input *GoogleAuthInput) (*
 	permissions := user.GetPermissions()
 
 	// Get user's default tenant
-	tenants, _ := s.tenantRepo.GetUserTenants(ctx, user.ID)
+	tenants, _, _ := s.tenantRepo.GetUserTenants(ctx, user.ID, &pagination.PaginationParams{Page: 1, PerPage: 1})
 	var tenantID uuid.UUID
 	if len(tenants) > 0 {
 		tenantID = tenants[0].ID

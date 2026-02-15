@@ -10,6 +10,7 @@ import (
 	"github.com/sangkips/investify-api/internal/domain/entity"
 	"github.com/sangkips/investify-api/internal/domain/repository"
 	"github.com/sangkips/investify-api/pkg/apperror"
+	"github.com/sangkips/investify-api/pkg/pagination"
 )
 
 // TenantService handles tenant-related operations
@@ -117,9 +118,29 @@ func (s *TenantService) GetTenant(ctx context.Context, id uuid.UUID) (*entity.Te
 	return tenant, nil
 }
 
+// ListTenantsOutput represents the output of listing tenants
+type ListTenantsOutput struct {
+	Tenants    []entity.Tenant `json:"tenants"`
+	Total      int64           `json:"total"`
+	Page       int             `json:"page"`
+	PerPage    int             `json:"per_page"`
+	TotalPages int             `json:"total_pages"`
+}
+
 // GetUserTenants retrieves all tenants a user belongs to
-func (s *TenantService) GetUserTenants(ctx context.Context, userID uuid.UUID) ([]entity.Tenant, error) {
-	return s.tenantRepo.GetUserTenants(ctx, userID)
+func (s *TenantService) GetUserTenants(ctx context.Context, userID uuid.UUID, params *pagination.PaginationParams) (*ListTenantsOutput, error) {
+	tenants, total, err := s.tenantRepo.GetUserTenants(ctx, userID, params)
+	if err != nil {
+		return nil, err
+	}
+
+	return &ListTenantsOutput{
+		Tenants:    tenants,
+		Total:      total,
+		Page:       params.Page,
+		PerPage:    params.PerPage,
+		TotalPages: pagination.NewPagination(params.Page, params.PerPage, total).TotalPages,
+	}, nil
 }
 
 // UpdateTenantInput represents input for updating a tenant
@@ -203,8 +224,19 @@ func (s *TenantService) UpdateMemberRole(ctx context.Context, tenantID, userID u
 }
 
 // ListAllTenants retrieves all tenants (for super admin use)
-func (s *TenantService) ListAllTenants(ctx context.Context) ([]entity.Tenant, error) {
-	return s.tenantRepo.ListAll(ctx)
+func (s *TenantService) ListAllTenants(ctx context.Context, params *pagination.PaginationParams) (*ListTenantsOutput, error) {
+	tenants, total, err := s.tenantRepo.ListAll(ctx, params)
+	if err != nil {
+		return nil, err
+	}
+
+	return &ListTenantsOutput{
+		Tenants:    tenants,
+		Total:      total,
+		Page:       params.Page,
+		PerPage:    params.PerPage,
+		TotalPages: pagination.NewPagination(params.Page, params.PerPage, total).TotalPages,
+	}, nil
 }
 
 // AssignUserToTenantInput represents input for assigning a user to a tenant

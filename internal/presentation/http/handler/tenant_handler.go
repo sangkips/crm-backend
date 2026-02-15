@@ -7,6 +7,7 @@ import (
 	"github.com/sangkips/investify-api/internal/domain/entity"
 	"github.com/sangkips/investify-api/internal/presentation/http/dto/response"
 	"github.com/sangkips/investify-api/internal/presentation/http/middleware"
+	"github.com/sangkips/investify-api/pkg/pagination"
 )
 
 // TenantHandler handles tenant-related HTTP requests
@@ -75,20 +76,21 @@ func (h *TenantHandler) GetCurrentTenant(c *gin.Context) {
 		return
 	}
 
-	tenants, err := h.tenantService.GetUserTenants(c.Request.Context(), *userID)
+	// Get only the first tenant
+	result, err := h.tenantService.GetUserTenants(c.Request.Context(), *userID, &pagination.PaginationParams{Page: 1, PerPage: 1})
 	if err != nil {
 		response.Error(c, err)
 		return
 	}
 
-	if len(tenants) == 0 {
+	if len(result.Tenants) == 0 {
 		response.NotFound(c, "No tenant found for user")
 		return
 	}
 
 	// Return the first tenant as the current/default tenant
 	response.OK(c, "Tenant retrieved successfully", gin.H{
-		"tenant": tenants[0],
+		"tenant": result.Tenants[0],
 	})
 }
 
@@ -100,14 +102,27 @@ func (h *TenantHandler) ListTenants(c *gin.Context) {
 		return
 	}
 
-	var tenants []entity.Tenant
+	var params pagination.PaginationParams
+	if err := c.ShouldBindQuery(&params); err != nil {
+		response.BadRequest(c, "Invalid pagination parameters")
+		return
+	}
+
+	// Set default per_page to 10 if not provided
+	if params.PerPage == 0 {
+		params.PerPage = 10
+	}
+	// Validate other params (e.g. Page default to 1)
+	params.Validate()
+
+	var result *service.ListTenantsOutput
 	var err error
 
 	// Super admins can see all tenants
 	if IsSuperAdmin(c) {
-		tenants, err = h.tenantService.ListAllTenants(c.Request.Context())
+		result, err = h.tenantService.ListAllTenants(c.Request.Context(), &params)
 	} else {
-		tenants, err = h.tenantService.GetUserTenants(c.Request.Context(), *userID)
+		result, err = h.tenantService.GetUserTenants(c.Request.Context(), *userID, &params)
 	}
 
 	if err != nil {
@@ -116,7 +131,8 @@ func (h *TenantHandler) ListTenants(c *gin.Context) {
 	}
 
 	response.OK(c, "Tenants retrieved successfully", gin.H{
-		"tenants": tenants,
+		"tenants":    result.Tenants,
+		"pagination": pagination.NewPagination(result.Page, result.PerPage, result.Total),
 	})
 }
 
@@ -256,14 +272,26 @@ func (h *TenantHandler) UpdateMemberRole(c *gin.Context) {
 
 // ListAllTenants returns all tenants (super admin only)
 func (h *TenantHandler) ListAllTenants(c *gin.Context) {
-	tenants, err := h.tenantService.ListAllTenants(c.Request.Context())
+	var params pagination.PaginationParams
+	if err := c.ShouldBindQuery(&params); err != nil {
+		response.BadRequest(c, "Invalid pagination parameters")
+		return
+	}
+
+	if params.PerPage == 0 {
+		params.PerPage = 10
+	}
+	params.Validate()
+
+	result, err := h.tenantService.ListAllTenants(c.Request.Context(), &params)
 	if err != nil {
 		response.Error(c, err)
 		return
 	}
 
 	response.OK(c, "All tenants retrieved successfully", gin.H{
-		"tenants": tenants,
+		"tenants":    result.Tenants,
+		"pagination": pagination.NewPagination(result.Page, result.PerPage, result.Total),
 	})
 }
 

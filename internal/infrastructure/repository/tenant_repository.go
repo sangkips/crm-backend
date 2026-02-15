@@ -7,6 +7,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/sangkips/investify-api/internal/domain/entity"
 	domainRepo "github.com/sangkips/investify-api/internal/domain/repository"
+	"github.com/sangkips/investify-api/pkg/pagination"
 	"gorm.io/gorm"
 )
 
@@ -49,13 +50,21 @@ func (r *tenantRepository) Delete(ctx context.Context, id uuid.UUID) error {
 	return r.db.WithContext(ctx).Delete(&entity.Tenant{}, "id = ?", id).Error
 }
 
-func (r *tenantRepository) GetUserTenants(ctx context.Context, userID uuid.UUID) ([]entity.Tenant, error) {
+func (r *tenantRepository) GetUserTenants(ctx context.Context, userID uuid.UUID, params *pagination.PaginationParams) ([]entity.Tenant, int64, error) {
 	var tenants []entity.Tenant
-	err := r.db.WithContext(ctx).
+	var total int64
+
+	query := r.db.WithContext(ctx).Model(&entity.Tenant{}).
 		Joins("JOIN tenant_memberships ON tenant_memberships.tenant_id = tenants.id").
-		Where("tenant_memberships.user_id = ?", userID).
-		Find(&tenants).Error
-	return tenants, err
+		Where("tenant_memberships.user_id = ?", userID)
+
+	if err := query.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+
+	params.Validate()
+	err := query.Offset(params.Offset()).Limit(params.PerPage).Find(&tenants).Error
+	return tenants, total, err
 }
 
 func (r *tenantRepository) AddMember(ctx context.Context, membership *entity.TenantMembership) error {
@@ -111,10 +120,19 @@ func (r *tenantRepository) SlugExists(ctx context.Context, slug string) (bool, e
 	return count > 0, err
 }
 
-func (r *tenantRepository) ListAll(ctx context.Context) ([]entity.Tenant, error) {
+func (r *tenantRepository) ListAll(ctx context.Context, params *pagination.PaginationParams) ([]entity.Tenant, int64, error) {
 	var tenants []entity.Tenant
-	err := r.db.WithContext(ctx).Find(&tenants).Error
-	return tenants, err
+	var total int64
+
+	query := r.db.WithContext(ctx).Model(&entity.Tenant{})
+
+	if err := query.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+
+	params.Validate()
+	err := query.Offset(params.Offset()).Limit(params.PerPage).Find(&tenants).Error
+	return tenants, total, err
 }
 
 func (r *tenantRepository) Count(ctx context.Context) (int64, error) {
