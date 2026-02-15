@@ -7,6 +7,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/sangkips/investify-api/internal/application/service"
+	infraRepo "github.com/sangkips/investify-api/internal/infrastructure/repository"
 	"github.com/sangkips/investify-api/internal/presentation/http/dto/response"
 )
 
@@ -26,7 +27,14 @@ func (h *UserHandler) List(c *gin.Context) {
 	perPage, _ := strconv.Atoi(c.DefaultQuery("per_page", "15"))
 	search := c.Query("search")
 
-	output, err := h.userService.ListUsers(c.Request.Context(), &service.ListUsersInput{
+	ctx := c.Request.Context()
+
+	// If user is super admin, we want to see all users across all tenants
+	if IsSuperAdmin(c) {
+		ctx = infraRepo.WithSkipTenantScope(ctx, true)
+	}
+
+	output, err := h.userService.ListUsers(ctx, &service.ListUsersInput{
 		Page:    page,
 		PerPage: perPage,
 		Search:  search,
