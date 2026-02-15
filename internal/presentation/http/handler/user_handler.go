@@ -24,7 +24,7 @@ func NewUserHandler(userService *service.UserService) *UserHandler {
 // List handles listing users with pagination
 func (h *UserHandler) List(c *gin.Context) {
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
-	perPage, _ := strconv.Atoi(c.DefaultQuery("per_page", "15"))
+	perPage, _ := strconv.Atoi(c.DefaultQuery("per_page", "10"))
 	search := c.Query("search")
 
 	ctx := c.Request.Context()

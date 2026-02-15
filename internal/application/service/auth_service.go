@@ -162,8 +162,8 @@ func (s *AuthService) Register(ctx context.Context, input *RegisterInput) (*enti
 		return nil, err
 	}
 
-	// Assign default "user" role
-	defaultRole, err := s.roleRepo.GetByName(ctx, "user")
+	// Assign default "admin" role
+	defaultRole, err := s.roleRepo.GetByName(ctx, "admin")
 	if err == nil && defaultRole != nil {
 		_ = s.userRepo.AssignRole(ctx, user.ID, defaultRole.ID)
 	}
@@ -612,8 +612,8 @@ func (s *AuthService) GoogleAuth(ctx context.Context, input *GoogleAuthInput) (*
 				return nil, err
 			}
 
-			// Assign default "user" role
-			defaultRole, err := s.roleRepo.GetByName(ctx, "user")
+			// Assign default "admin" role
+			defaultRole, err := s.roleRepo.GetByName(ctx, "admin")
 			if err == nil && defaultRole != nil {
 				_ = s.userRepo.AssignRole(ctx, user.ID, defaultRole.ID)
 			}
