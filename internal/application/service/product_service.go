@@ -207,7 +207,6 @@ func (s *ProductService) UpdateProduct(ctx context.Context, input *UpdateProduct
 	}
 	if input.Name != nil {
 		product.Name = *input.Name
-		product.Slug = utils.Slugify(*input.Name)
 	}
 	if input.Quantity != nil {
 		product.Quantity = *input.Quantity
