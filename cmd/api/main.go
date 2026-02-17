@@ -197,6 +197,7 @@ func main() {
 			{
 				products.GET("", productHandler.List)
 				products.POST("", productHandler.Create)
+				products.POST("/import", productHandler.ImportProducts)
 				products.GET("/low-stock", productHandler.GetLowStock)
 				products.GET("/:slug", productHandler.Get)
 				products.PUT("/:slug", productHandler.Update)

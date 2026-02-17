@@ -11,6 +11,7 @@ import (
 // ProductRepository defines the interface for product data operations
 type ProductRepository interface {
 	Create(ctx context.Context, product *entity.Product) error
+	CreateBatch(ctx context.Context, products []entity.Product) error
 	GetByID(ctx context.Context, id uuid.UUID) (*entity.Product, error)
 	// GetByIDs retrieves multiple products by their IDs in a single query (prevents N+1)
 	GetByIDs(ctx context.Context, ids []uuid.UUID) ([]entity.Product, error)

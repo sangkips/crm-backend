@@ -1,6 +1,12 @@
 package handler
 
 import (
+	"encoding/csv"
+	"fmt"
+	"io"
+	"strconv"
+	"strings"
+
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/sangkips/investify-api/internal/application/service"
@@ -10,6 +16,7 @@ import (
 	"github.com/sangkips/investify-api/internal/presentation/http/dto/request"
 	"github.com/sangkips/investify-api/internal/presentation/http/dto/response"
 	"github.com/sangkips/investify-api/pkg/pagination"
+	"github.com/xuri/excelize/v2"
 )
 
 // ProductHandler handles product-related HTTP requests
@@ -292,6 +299,180 @@ func (h *ProductHandler) GetLowStock(c *gin.Context) {
 	}
 
 	response.OK(c, "Low stock products retrieved successfully", products)
+}
+
+// ImportProducts handles bulk product import from CSV or XLSX files
+func (h *ProductHandler) ImportProducts(c *gin.Context) {
+	userID := GetUserID(c)
+	if userID == nil {
+		response.Unauthorized(c, "User not authenticated")
+		return
+	}
+
+	file, header, err := c.Request.FormFile("file")
+	if err != nil {
+		response.BadRequest(c, "File is required. Use form field 'file' to upload a CSV or XLSX file.")
+		return
+	}
+	defer file.Close()
+
+	filename := strings.ToLower(header.Filename)
+	var rows []service.ImportProductRow
+
+	switch {
+	case strings.HasSuffix(filename, ".csv"):
+		rows, err = parseCSV(file)
+	case strings.HasSuffix(filename, ".xlsx"):
+		rows, err = parseXLSX(file)
+	default:
+		response.BadRequest(c, "Unsupported file format. Please upload a .csv or .xlsx file.")
+		return
+	}
+
+	if err != nil {
+		response.BadRequest(c, "Failed to parse file: "+err.Error())
+		return
+	}
+
+	if len(rows) == 0 {
+		response.BadRequest(c, "File contains no data rows")
+		return
+	}
+
+	result, err := h.productService.ImportProducts(c.Request.Context(), *userID, rows)
+	if err != nil {
+		response.Error(c, err)
+		return
+	}
+
+	response.OK(c, "Product import completed", result)
+}
+
+// parseCSV parses a CSV file into ImportProductRow slices
+// Expected columns: name,code,quantity,quantity_alert,buying_price,selling_price,tax,tax_type,notes,category,unit
+func parseCSV(file io.Reader) ([]service.ImportProductRow, error) {
+	reader := csv.NewReader(file)
+	records, err := reader.ReadAll()
+	if err != nil {
+		return nil, fmt.Errorf("invalid CSV format: %w", err)
+	}
+
+	if len(records) < 2 {
+		return nil, nil // Only header or empty
+	}
+
+	var rows []service.ImportProductRow
+	for _, record := range records[1:] { // Skip header row
+		if len(record) < 1 {
+			continue
+		}
+		row := service.ImportProductRow{}
+		if len(record) > 0 {
+			row.Name = strings.TrimSpace(record[0])
+		}
+		if len(record) > 1 {
+			row.Code = strings.TrimSpace(record[1])
+		}
+		if len(record) > 2 {
+			row.Quantity, _ = strconv.Atoi(strings.TrimSpace(record[2]))
+		}
+		if len(record) > 3 {
+			row.QuantityAlert, _ = strconv.Atoi(strings.TrimSpace(record[3]))
+		}
+		if len(record) > 4 {
+			row.BuyingPrice, _ = strconv.ParseFloat(strings.TrimSpace(record[4]), 64)
+		}
+		if len(record) > 5 {
+			row.SellingPrice, _ = strconv.ParseFloat(strings.TrimSpace(record[5]), 64)
+		}
+		if len(record) > 6 {
+			row.Tax, _ = strconv.Atoi(strings.TrimSpace(record[6]))
+		}
+		if len(record) > 7 {
+			row.TaxType, _ = strconv.Atoi(strings.TrimSpace(record[7]))
+		}
+		if len(record) > 8 {
+			row.Notes = strings.TrimSpace(record[8])
+		}
+		if len(record) > 9 {
+			row.CategoryName = strings.TrimSpace(record[9])
+		}
+		if len(record) > 10 {
+			row.UnitName = strings.TrimSpace(record[10])
+		}
+		rows = append(rows, row)
+	}
+
+	return rows, nil
+}
+
+// parseXLSX parses an XLSX file into ImportProductRow slices
+// Reads the first sheet; first row is treated as header
+// Expected columns: name,code,quantity,quantity_alert,buying_price,selling_price,tax,tax_type,notes,category,unit
+func parseXLSX(file io.Reader) ([]service.ImportProductRow, error) {
+	f, err := excelize.OpenReader(file)
+	if err != nil {
+		return nil, fmt.Errorf("invalid XLSX format: %w", err)
+	}
+	defer f.Close()
+
+	sheetName := f.GetSheetName(0)
+	if sheetName == "" {
+		return nil, fmt.Errorf("no sheets found in XLSX file")
+	}
+
+	xlsxRows, err := f.GetRows(sheetName)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read sheet: %w", err)
+	}
+
+	if len(xlsxRows) < 2 {
+		return nil, nil // Only header or empty
+	}
+
+	var rows []service.ImportProductRow
+	for _, record := range xlsxRows[1:] { // Skip header row
+		if len(record) < 1 {
+			continue
+		}
+		row := service.ImportProductRow{}
+		if len(record) > 0 {
+			row.Name = strings.TrimSpace(record[0])
+		}
+		if len(record) > 1 {
+			row.Code = strings.TrimSpace(record[1])
+		}
+		if len(record) > 2 {
+			row.Quantity, _ = strconv.Atoi(strings.TrimSpace(record[2]))
+		}
+		if len(record) > 3 {
+			row.QuantityAlert, _ = strconv.Atoi(strings.TrimSpace(record[3]))
+		}
+		if len(record) > 4 {
+			row.BuyingPrice, _ = strconv.ParseFloat(strings.TrimSpace(record[4]), 64)
+		}
+		if len(record) > 5 {
+			row.SellingPrice, _ = strconv.ParseFloat(strings.TrimSpace(record[5]), 64)
+		}
+		if len(record) > 6 {
+			row.Tax, _ = strconv.Atoi(strings.TrimSpace(record[6]))
+		}
+		if len(record) > 7 {
+			row.TaxType, _ = strconv.Atoi(strings.TrimSpace(record[7]))
+		}
+		if len(record) > 8 {
+			row.Notes = strings.TrimSpace(record[8])
+		}
+		if len(record) > 9 {
+			row.CategoryName = strings.TrimSpace(record[9])
+		}
+		if len(record) > 10 {
+			row.UnitName = strings.TrimSpace(record[10])
+		}
+		rows = append(rows, row)
+	}
+
+	return rows, nil
 }
 
 // CategoryHandler handles category-related HTTP requests

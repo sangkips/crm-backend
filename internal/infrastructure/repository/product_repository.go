@@ -24,6 +24,13 @@ func (r *productRepository) Create(ctx context.Context, product *entity.Product)
 	return r.db.WithContext(ctx).Create(product).Error
 }
 
+func (r *productRepository) CreateBatch(ctx context.Context, products []entity.Product) error {
+	if len(products) == 0 {
+		return nil
+	}
+	return r.db.WithContext(ctx).CreateInBatches(products, 100).Error
+}
+
 func (r *productRepository) GetByID(ctx context.Context, id uuid.UUID) (*entity.Product, error) {
 	var product entity.Product
 	err := r.db.WithContext(ctx).

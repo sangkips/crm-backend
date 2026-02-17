@@ -14,7 +14,11 @@ const (
 )
 
 func (t TaxType) String() string {
-	return [...]string{"Exclusive", "Inclusive"}[t]
+	names := [...]string{"Exclusive", "Inclusive"}
+	if int(t) < 0 || int(t) >= len(names) {
+		return "Exclusive"
+	}
+	return names[t]
 }
 
 func (t TaxType) MarshalJSON() ([]byte, error) {
