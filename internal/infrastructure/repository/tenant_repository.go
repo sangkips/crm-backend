@@ -140,3 +140,14 @@ func (r *tenantRepository) Count(ctx context.Context) (int64, error) {
 	err := r.db.WithContext(ctx).Model(&entity.Tenant{}).Count(&count).Error
 	return count, err
 }
+
+func (r *tenantRepository) GetAdminEmails(ctx context.Context, tenantID uuid.UUID) ([]string, error) {
+	var emails []string
+	err := r.db.WithContext(ctx).
+		Model(&entity.TenantMembership{}).
+		Select("users.email").
+		Joins("JOIN users ON users.id = tenant_memberships.user_id").
+		Where("tenant_memberships.tenant_id = ? AND tenant_memberships.role IN ?", tenantID, []string{"owner", "admin"}).
+		Scan(&emails).Error
+	return emails, err
+}

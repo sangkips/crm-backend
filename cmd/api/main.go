@@ -96,7 +96,7 @@ func main() {
 	productService := service.NewProductService(productRepo, categoryRepo, unitRepo)
 	categoryService := service.NewCategoryService(categoryRepo)
 	unitService := service.NewUnitService(unitRepo)
-	orderService := service.NewOrderService(orderRepo, orderDetailRepo, productRepo, customerRepo)
+	orderService := service.NewOrderService(orderRepo, orderDetailRepo, productRepo, customerRepo, emailService, tenantRepo)
 	purchaseService := service.NewPurchaseService(purchaseRepo, purchaseDetailRepo, productRepo, supplierRepo)
 	customerService := service.NewCustomerService(customerRepo)
 	supplierService := service.NewSupplierService(supplierRepo)

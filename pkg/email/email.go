@@ -55,6 +55,54 @@ func (s *EmailService) SendPasswordResetEmail(toEmail, token string) error {
 	return s.sendEmail(toEmail, message)
 }
 
+// LowStockProduct holds details of a product that has reached low stock
+type LowStockProduct struct {
+	Name          string
+	Code          string
+	Quantity      int
+	QuantityAlert int
+}
+
+// SendLowStockAlertEmail sends a low stock alert email to an admin
+func (s *EmailService) SendLowStockAlertEmail(toEmail, orgName string, products []LowStockProduct) error {
+	htmlContent, err := s.renderLowStockAlertEmail(orgName, products)
+	if err != nil {
+		return fmt.Errorf("failed to render low stock alert email: %w", err)
+	}
+
+	subject := fmt.Sprintf("⚠️ Low Stock Alert - %s", orgName)
+	message := s.buildHTMLEmail(toEmail, subject, htmlContent)
+
+	return s.sendEmail(toEmail, message)
+}
+
+// renderLowStockAlertEmail renders the low stock alert email template
+func (s *EmailService) renderLowStockAlertEmail(orgName string, products []LowStockProduct) (string, error) {
+	tmpl, err := template.New("low_stock_alert").Parse(lowStockAlertTemplate)
+	if err != nil {
+		return "", err
+	}
+
+	data := struct {
+		OrgName  string
+		Products []LowStockProduct
+		AppName  string
+		Year     int
+	}{
+		OrgName:  orgName,
+		Products: products,
+		AppName:  "Investify",
+		Year:     time.Now().Year(),
+	}
+
+	var buf bytes.Buffer
+	if err := tmpl.Execute(&buf, data); err != nil {
+		return "", err
+	}
+
+	return buf.String(), nil
+}
+
 // sendEmail sends an email using SMTP with timeout protection
 func (s *EmailService) sendEmail(to string, message []byte) error {
 	addr := net.JoinHostPort(s.config.SMTPHost, fmt.Sprintf("%d", s.config.SMTPPort))
@@ -235,6 +283,83 @@ const passwordResetTemplate = `
                             </p>
                             <p style="color: #667eea; font-size: 14px; line-height: 1.6; margin: 10px 0 0 0; word-break: break-all;">
                                 <a href="{{.ResetURL}}" style="color: #667eea;">{{.ResetURL}}</a>
+                            </p>
+                        </td>
+                    </tr>
+                    
+                    <!-- Footer -->
+                    <tr>
+                        <td style="background-color: #f8fafc; padding: 30px; text-align: center; border-top: 1px solid #e2e8f0;">
+                            <p style="color: #a0aec0; font-size: 14px; margin: 0 0 10px 0;">
+                                This email was sent by {{.AppName}}
+                            </p>
+                            <p style="color: #cbd5e0; font-size: 12px; margin: 0;">
+                                © {{.Year}} {{.AppName}}. All rights reserved.
+                            </p>
+                        </td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+    </table>
+</body>
+</html>
+`
+
+// lowStockAlertTemplate is the HTML template for low stock alert emails
+const lowStockAlertTemplate = `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Low Stock Alert</title>
+</head>
+<body style="margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f4f7fa;">
+    <table role="presentation" style="width: 100%; border-collapse: collapse;">
+        <tr>
+            <td style="padding: 40px 0;">
+                <table role="presentation" style="max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
+                    <!-- Header -->
+                    <tr>
+                        <td style="background: linear-gradient(135deg, #e53e3e 0%, #c53030 100%); padding: 40px 30px; text-align: center;">
+                            <h1 style="color: #ffffff; margin: 0; font-size: 28px; font-weight: 600;">⚠️ Low Stock Alert</h1>
+                        </td>
+                    </tr>
+                    
+                    <!-- Content -->
+                    <tr>
+                        <td style="padding: 40px 30px;">
+                            <h2 style="color: #1a1a2e; margin: 0 0 20px 0; font-size: 24px; font-weight: 600;">{{.OrgName}}</h2>
+                            
+                            <p style="color: #4a5568; font-size: 16px; line-height: 1.6; margin: 0 0 20px 0;">
+                                The following products have reached or fallen below their low stock threshold and may need to be restocked:
+                            </p>
+                            
+                            <!-- Products Table -->
+                            <table role="presentation" style="width: 100%; border-collapse: collapse; margin: 0 0 30px 0;">
+                                <thead>
+                                    <tr style="background-color: #f7fafc;">
+                                        <th style="padding: 12px 16px; text-align: left; font-size: 13px; font-weight: 600; color: #4a5568; border-bottom: 2px solid #e2e8f0;">Product</th>
+                                        <th style="padding: 12px 16px; text-align: left; font-size: 13px; font-weight: 600; color: #4a5568; border-bottom: 2px solid #e2e8f0;">Code</th>
+                                        <th style="padding: 12px 16px; text-align: center; font-size: 13px; font-weight: 600; color: #4a5568; border-bottom: 2px solid #e2e8f0;">Current Qty</th>
+                                        <th style="padding: 12px 16px; text-align: center; font-size: 13px; font-weight: 600; color: #4a5568; border-bottom: 2px solid #e2e8f0;">Alert At</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {{range .Products}}
+                                    <tr>
+                                        <td style="padding: 12px 16px; font-size: 14px; color: #2d3748; border-bottom: 1px solid #e2e8f0;">{{.Name}}</td>
+                                        <td style="padding: 12px 16px; font-size: 14px; color: #718096; border-bottom: 1px solid #e2e8f0;">{{.Code}}</td>
+                                        <td style="padding: 12px 16px; font-size: 14px; color: #e53e3e; font-weight: 600; text-align: center; border-bottom: 1px solid #e2e8f0;">{{.Quantity}}</td>
+                                        <td style="padding: 12px 16px; font-size: 14px; color: #718096; text-align: center; border-bottom: 1px solid #e2e8f0;">{{.QuantityAlert}}</td>
+                                    </tr>
+                                    {{end}}
+                                </tbody>
+                            </table>
+                            
+                            <p style="color: #718096; font-size: 14px; line-height: 1.6; margin: 0;">
+                                Please restock these products at your earliest convenience to avoid running out of inventory.
                             </p>
                         </td>
                     </tr>

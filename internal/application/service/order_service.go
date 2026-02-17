@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"log"
 	"time"
 
 	"github.com/google/uuid"
@@ -11,6 +12,7 @@ import (
 	"github.com/sangkips/investify-api/internal/domain/repository"
 	infraRepo "github.com/sangkips/investify-api/internal/infrastructure/repository"
 	"github.com/sangkips/investify-api/pkg/apperror"
+	"github.com/sangkips/investify-api/pkg/email"
 	"github.com/sangkips/investify-api/pkg/pagination"
 )
 
@@ -20,6 +22,8 @@ type OrderService struct {
 	orderDetailRepo repository.OrderDetailRepository
 	productRepo     repository.ProductRepository
 	customerRepo    repository.CustomerRepository
+	emailService    *email.EmailService
+	tenantRepo      repository.TenantRepository
 }
 
 // NewOrderService creates a new order service
@@ -28,12 +32,16 @@ func NewOrderService(
 	orderDetailRepo repository.OrderDetailRepository,
 	productRepo repository.ProductRepository,
 	customerRepo repository.CustomerRepository,
+	emailService *email.EmailService,
+	tenantRepo repository.TenantRepository,
 ) *OrderService {
 	return &OrderService{
 		orderRepo:       orderRepo,
 		orderDetailRepo: orderDetailRepo,
 		productRepo:     productRepo,
 		customerRepo:    customerRepo,
+		emailService:    emailService,
+		tenantRepo:      tenantRepo,
 	}
 }
 
@@ -202,6 +210,9 @@ func (s *OrderService) CreateOrder(ctx context.Context, input *CreateOrderInput)
 		return nil, err
 	}
 
+	// Check for low stock and send email notifications asynchronously
+	go s.checkAndNotifyLowStock(ctx, tenantID, productIDs)
+
 	return s.orderRepo.GetWithDetails(ctx, order.ID)
 }
 
@@ -331,4 +342,55 @@ func (s *OrderService) PayDue(ctx context.Context, userID, orderID uuid.UUID, am
 	}
 
 	return s.orderRepo.Update(ctx, order)
+}
+
+// checkAndNotifyLowStock checks if any ordered products have hit low stock and emails admins
+func (s *OrderService) checkAndNotifyLowStock(reqCtx context.Context, tenantID uuid.UUID, productIDs []uuid.UUID) {
+	// Use a background context since this runs in a goroutine after the HTTP response
+	ctx := infraRepo.WithTenant(context.Background(), tenantID)
+
+	// Re-fetch products to get updated quantities
+	products, err := s.productRepo.GetByIDs(ctx, productIDs)
+	if err != nil {
+		log.Printf("Low stock check: failed to fetch products: %v", err)
+		return
+	}
+
+	// Filter products that are at or below their alert threshold
+	var lowStockProducts []email.LowStockProduct
+	for _, p := range products {
+		if p.QuantityAlert > 0 && p.Quantity <= p.QuantityAlert {
+			lowStockProducts = append(lowStockProducts, email.LowStockProduct{
+				Name:          p.Name,
+				Code:          p.Code,
+				Quantity:      p.Quantity,
+				QuantityAlert: p.QuantityAlert,
+			})
+		}
+	}
+
+	if len(lowStockProducts) == 0 {
+		return
+	}
+
+	// Get tenant name
+	tenant, err := s.tenantRepo.GetByID(ctx, tenantID)
+	if err != nil || tenant == nil {
+		log.Printf("Low stock check: failed to fetch tenant: %v", err)
+		return
+	}
+
+	// Get admin emails for the tenant
+	adminEmails, err := s.tenantRepo.GetAdminEmails(ctx, tenantID)
+	if err != nil {
+		log.Printf("Low stock check: failed to fetch admin emails: %v", err)
+		return
+	}
+
+	// Send email to each admin
+	for _, adminEmail := range adminEmails {
+		if err := s.emailService.SendLowStockAlertEmail(adminEmail, tenant.Name, lowStockProducts); err != nil {
+			log.Printf("Low stock check: failed to send email to %s: %v", adminEmail, err)
+		}
+	}
 }

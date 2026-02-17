@@ -54,4 +54,7 @@ type TenantRepository interface {
 
 	// Count returns the total number of tenants
 	Count(ctx context.Context) (int64, error)
+
+	// GetAdminEmails returns email addresses of all owners and admins for a tenant
+	GetAdminEmails(ctx context.Context, tenantID uuid.UUID) ([]string, error)
 }
