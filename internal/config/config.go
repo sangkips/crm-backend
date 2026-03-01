@@ -16,6 +16,7 @@ type Config struct {
 	RateLimit RateLimitConfig
 	Email     EmailConfig
 	OAuth     OAuthConfig
+	Printer   PrinterConfig
 }
 
 type AppConfig struct {
@@ -75,6 +76,13 @@ type OAuthConfig struct {
 	FrontendErrorURL   string
 }
 
+// PrinterConfig holds thermal printer connection settings.
+type PrinterConfig struct {
+	Type    string // "usb", "network", or "none"
+	USBPath string // Device path, e.g. "/dev/usb/lp0"
+	Address string // TCP address, e.g. "192.168.1.100:9100"
+}
+
 func Load() *Config {
 	viper.SetConfigFile(".env")
 	viper.AutomaticEnv()
@@ -116,6 +124,9 @@ func Load() *Config {
 	viper.SetDefault("GOOGLE_REDIRECT_URL", "http://localhost:8080/api/v1/auth/google/callback")
 	viper.SetDefault("OAUTH_FRONTEND_SUCCESS_URL", "http://localhost:3000/dashboard")
 	viper.SetDefault("OAUTH_FRONTEND_ERROR_URL", "http://localhost:3000/login")
+	viper.SetDefault("PRINTER_TYPE", "none")
+	viper.SetDefault("PRINTER_USB_PATH", "/dev/usb/lp0")
+	viper.SetDefault("PRINTER_ADDRESS", "")
 
 	return &Config{
 		App: AppConfig{
@@ -166,6 +177,11 @@ func Load() *Config {
 			GoogleRedirectURL:  viper.GetString("GOOGLE_REDIRECT_URL"),
 			FrontendSuccessURL: viper.GetString("OAUTH_FRONTEND_SUCCESS_URL"),
 			FrontendErrorURL:   viper.GetString("OAUTH_FRONTEND_ERROR_URL"),
+		},
+		Printer: PrinterConfig{
+			Type:    viper.GetString("PRINTER_TYPE"),
+			USBPath: viper.GetString("PRINTER_USB_PATH"),
+			Address: viper.GetString("PRINTER_ADDRESS"),
 		},
 	}
 }

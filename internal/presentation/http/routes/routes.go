@@ -26,6 +26,7 @@ type Handlers struct {
 	Quotation *handler.QuotationHandler
 	Settings  *handler.SettingsHandler
 	User      *handler.UserHandler
+	Printer   *handler.PrinterHandler
 }
 
 // Deps holds shared dependencies needed by the routes.
@@ -146,6 +147,9 @@ func registerProtectedRoutes(protected *gin.RouterGroup, h *Handlers, deps *Deps
 
 	// Super Admin routes
 	registerAdminRoutes(protected, h)
+
+	// Printer
+	registerPrinterRoutes(protected, h)
 }
 
 func registerTenantRoutes(protected *gin.RouterGroup, h *Handlers) {
@@ -312,5 +316,14 @@ func registerAdminRoutes(protected *gin.RouterGroup, h *Handlers) {
 	admin.Use(middleware.RequireRole("super-admin"))
 	{
 		admin.POST("/tenants/assign-user", h.Tenant.AssignUserToTenant)
+	}
+}
+
+func registerPrinterRoutes(protected *gin.RouterGroup, h *Handlers) {
+	printerGroup := protected.Group("/printer")
+	{
+		printerGroup.GET("/status", h.Printer.GetStatus)
+		printerGroup.POST("/test", h.Printer.TestPrint)
+		printerGroup.POST("/receipt", h.Printer.PrintReceipt)
 	}
 }

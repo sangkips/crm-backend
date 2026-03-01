@@ -13,6 +13,7 @@ import (
 	"github.com/sangkips/investify-api/internal/presentation/http/routes"
 	"github.com/sangkips/investify-api/pkg/email"
 	"github.com/sangkips/investify-api/pkg/oauth"
+	"github.com/sangkips/investify-api/pkg/printer"
 	"github.com/sangkips/investify-api/pkg/utils"
 )
 
@@ -104,6 +105,18 @@ func main() {
 	settingsService := service.NewSettingsService(settingsRepo)
 	userService := service.NewUserService(userRepo, roleRepo, permissionRepo)
 
+	// Initialize thermal printer
+	thermalPrinter, err := printer.NewPrinterFromConfig(
+		cfg.Printer.Type,
+		cfg.Printer.USBPath,
+		cfg.Printer.Address,
+	)
+	if err != nil {
+		log.Printf("Warning: Failed to initialize printer: %v", err)
+		thermalPrinter = printer.NewNullPrinter()
+	}
+	printerService := service.NewPrinterService(thermalPrinter, orderRepo, quotationRepo, cfg.Printer.Type)
+
 	// Initialize handlers
 	handlers := &routes.Handlers{
 		Auth:      handler.NewAuthHandler(authService),
@@ -119,6 +132,7 @@ func main() {
 		Quotation: handler.NewQuotationHandler(quotationService),
 		Settings:  handler.NewSettingsHandler(settingsService),
 		User:      handler.NewUserHandler(userService),
+		Printer:   handler.NewPrinterHandler(printerService),
 	}
 
 	// Setup routes
