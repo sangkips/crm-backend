@@ -27,6 +27,7 @@ type Handlers struct {
 	Settings  *handler.SettingsHandler
 	User      *handler.UserHandler
 	Printer   *handler.PrinterHandler
+	Mpesa     *handler.MpesaHandler
 }
 
 // Deps holds shared dependencies needed by the routes.
@@ -58,6 +59,9 @@ func Setup(h *Handlers, deps *Deps) *gin.Engine {
 	{
 		// Public routes (no authentication required)
 		registerAuthRoutes(v1, h)
+
+		// M-Pesa callback (public — Safaricom calls this directly)
+		v1.POST("/mpesa/callback", h.Mpesa.Callback)
 
 		// Protected routes (authentication required)
 		protected := v1.Group("")
@@ -150,6 +154,9 @@ func registerProtectedRoutes(protected *gin.RouterGroup, h *Handlers, deps *Deps
 
 	// Printer
 	registerPrinterRoutes(protected, h)
+
+	// M-Pesa payments
+	registerMpesaRoutes(protected, h)
 }
 
 func registerTenantRoutes(protected *gin.RouterGroup, h *Handlers) {
@@ -325,5 +332,15 @@ func registerPrinterRoutes(protected *gin.RouterGroup, h *Handlers) {
 		printerGroup.GET("/status", h.Printer.GetStatus)
 		printerGroup.POST("/test", h.Printer.TestPrint)
 		printerGroup.POST("/receipt", h.Printer.PrintReceipt)
+	}
+}
+
+func registerMpesaRoutes(protected *gin.RouterGroup, h *Handlers) {
+	mpesa := protected.Group("/mpesa")
+	mpesa.Use(middleware.RequirePermission("manage-orders"))
+	{
+		mpesa.POST("/stkpush", h.Mpesa.InitiateSTKPush)
+		mpesa.GET("/transactions/:id", h.Mpesa.GetTransaction)
+		mpesa.GET("/transactions/order/:order_id", h.Mpesa.GetOrderTransactions)
 	}
 }

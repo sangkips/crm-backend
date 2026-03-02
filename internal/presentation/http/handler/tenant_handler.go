@@ -154,8 +154,9 @@ func (h *TenantHandler) UpdateTenant(c *gin.Context) {
 	}
 
 	tenant, err := h.tenantService.UpdateTenant(c.Request.Context(), &service.UpdateTenantInput{
-		ID:   tenantID,
-		Name: req.Name,
+		ID:       tenantID,
+		Name:     req.Name,
+		Settings: req.Settings,
 	})
 	if err != nil {
 		response.Error(c, err)

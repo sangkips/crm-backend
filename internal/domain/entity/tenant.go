@@ -154,7 +154,8 @@ type MpesaIntegration struct {
 	ConsumerSecret string `json:"consumer_secret"`
 	ShortCode      string `json:"short_code"`
 	PassKey        string `json:"pass_key"`
-	Environment    string `json:"environment"` // sandbox, production
+	Environment    string `json:"environment"`  // sandbox, production
+	CallbackURL    string `json:"callback_url"` // Public URL for Safaricom callbacks
 }
 
 // StripeIntegration holds Stripe configuration

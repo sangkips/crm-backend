@@ -69,6 +69,7 @@ func main() {
 	permissionRepo := repository.NewPermissionRepository(db)
 	analyticsRepo := repository.NewAnalyticsRepository(db)
 	passwordResetRepo := repository.NewPasswordResetTokenRepository(db)
+	mpesaTxRepo := repository.NewMpesaTransactionRepository(db)
 
 	// Initialize email service
 	emailService := email.NewEmailService(email.EmailConfig{
@@ -104,6 +105,7 @@ func main() {
 	quotationService := service.NewQuotationService(quotationRepo, quotationDetailRepo, productRepo, customerRepo)
 	settingsService := service.NewSettingsService(settingsRepo)
 	userService := service.NewUserService(userRepo, roleRepo, permissionRepo)
+	mpesaService := service.NewMpesaService(mpesaTxRepo, tenantRepo, orderRepo, orderService)
 
 	// Initialize thermal printer
 	thermalPrinter, err := printer.NewPrinterFromConfig(
@@ -133,6 +135,7 @@ func main() {
 		Settings:  handler.NewSettingsHandler(settingsService),
 		User:      handler.NewUserHandler(userService),
 		Printer:   handler.NewPrinterHandler(printerService),
+		Mpesa:     handler.NewMpesaHandler(mpesaService),
 	}
 
 	// Setup routes

@@ -77,6 +77,9 @@ func AutoMigrate(db *gorm.DB) error {
 		// System entities
 		&entity.IdempotencyKey{},
 		&entity.UserSettings{},
+
+		// Payment entities
+		&entity.MpesaTransaction{},
 	)
 
 	if err != nil {
