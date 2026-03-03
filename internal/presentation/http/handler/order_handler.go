@@ -17,11 +17,12 @@ import (
 // OrderHandler handles order-related HTTP requests
 type OrderHandler struct {
 	orderService *service.OrderService
+	mpesaService *service.MpesaService
 }
 
 // NewOrderHandler creates a new order handler
-func NewOrderHandler(orderService *service.OrderService) *OrderHandler {
-	return &OrderHandler{orderService: orderService}
+func NewOrderHandler(orderService *service.OrderService, mpesaService *service.MpesaService) *OrderHandler {
+	return &OrderHandler{orderService: orderService, mpesaService: mpesaService}
 }
 
 // List handles listing orders (supports both page-based and cursor-based pagination)
@@ -328,10 +329,32 @@ func (h *OrderHandler) PayDue(c *gin.Context) {
 	}
 
 	var req struct {
-		Amount float64 `json:"amount" binding:"required"`
+		Amount      float64 `json:"amount" binding:"required"`
+		PaymentType string  `json:"payment_type"`
+		MpesaPhone  string  `json:"mpesa_phone"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.BadRequest(c, "Invalid request body")
+		return
+	}
+
+	// For M-Pesa payments, initiate an STK Push instead of recording directly.
+	// The order will be updated automatically via the M-Pesa callback.
+	if req.PaymentType == "mpesa" {
+		if req.MpesaPhone == "" {
+			response.BadRequest(c, "mpesa_phone is required for M-Pesa payments")
+			return
+		}
+		tx, err := h.mpesaService.InitiateSTKPush(c.Request.Context(), &service.STKPushInput{
+			OrderID:     id,
+			PhoneNumber: req.MpesaPhone,
+			UserID:      *userID,
+		})
+		if err != nil {
+			response.Error(c, err)
+			return
+		}
+		response.OK(c, "M-Pesa STK Push initiated. Check your phone for the PIN prompt.", tx)
 		return
 	}
 

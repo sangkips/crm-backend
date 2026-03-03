@@ -126,7 +126,7 @@ func main() {
 		Product:   handler.NewProductHandler(productService),
 		Category:  handler.NewCategoryHandler(categoryService),
 		Unit:      handler.NewUnitHandler(unitService),
-		Order:     handler.NewOrderHandler(orderService),
+		Order:     handler.NewOrderHandler(orderService, mpesaService),
 		Purchase:  handler.NewPurchaseHandler(purchaseService),
 		Customer:  handler.NewCustomerHandler(customerService),
 		Supplier:  handler.NewSupplierHandler(supplierService),
