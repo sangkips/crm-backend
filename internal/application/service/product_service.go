@@ -89,6 +89,7 @@ func (s *ProductService) CreateProduct(ctx context.Context, input *CreateProduct
 		Quantity:      input.Quantity,
 		QuantityAlert: input.QuantityAlert,
 		Tax:           input.Tax,
+		TaxType:       enum.TaxType(input.TaxType),
 		Notes:         input.Notes,
 	}
 	product.SetBuyingPriceFromDecimal(input.BuyingPrice)
