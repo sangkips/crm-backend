@@ -40,22 +40,29 @@ type DailySalesResult struct {
 	Profit  float64
 }
 
+// DateRange represents an optional date filter applied to analytics queries.
+// Both fields must be non-nil for the filter to be applied.
+type DateRange struct {
+	Start time.Time
+	End   time.Time
+}
+
 // AnalyticsRepository defines interface for analytics/aggregation queries
 type AnalyticsRepository interface {
 	// GetTopProducts returns top selling products by revenue
-	GetTopProducts(ctx context.Context, limit int) ([]TopProductResult, error)
+	GetTopProducts(ctx context.Context, limit int, dr *DateRange) ([]TopProductResult, error)
 
 	// GetSalesByCategory returns sales aggregated by category with percentages
-	GetSalesByCategory(ctx context.Context) ([]CategorySalesResult, error)
+	GetSalesByCategory(ctx context.Context, dr *DateRange) ([]CategorySalesResult, error)
 
 	// GetTopCustomers returns top customers by total spending
-	GetTopCustomers(ctx context.Context, limit int) ([]TopCustomerResult, error)
+	GetTopCustomers(ctx context.Context, limit int, dr *DateRange) ([]TopCustomerResult, error)
 
 	// GetDailySales returns daily sales data for the last N days
-	GetDailySales(ctx context.Context, days int) ([]DailySalesResult, error)
+	GetDailySales(ctx context.Context, days int, dr *DateRange) ([]DailySalesResult, error)
 
 	// GetTotalRevenue returns total revenue from completed orders
-	GetTotalRevenue(ctx context.Context) (float64, error)
+	GetTotalRevenue(ctx context.Context, dr *DateRange) (float64, error)
 
 	// GetMonthlyRevenue returns revenue for the current month
 	GetMonthlyRevenue(ctx context.Context) (float64, error)

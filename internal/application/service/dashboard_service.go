@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/sangkips/investify-api/internal/domain/enum"
@@ -53,6 +54,9 @@ type DashboardStats struct {
 	RevenueGrowth     float64              `json:"revenue_growth"`
 	OrdersGrowth      float64              `json:"orders_growth"`
 	CustomersGrowth   float64              `json:"customers_growth"`
+	Period            string               `json:"period"`
+	PeriodStart       string               `json:"period_start"`
+	PeriodEnd         string               `json:"period_end"`
 	DailySalesData    []DailySalesPoint    `json:"daily_sales_data"`
 	CategorySalesData []CategorySalesPoint `json:"category_sales_data"`
 	TopProducts       []SalesByProduct     `json:"top_products"`
@@ -99,29 +103,66 @@ type SalesByCustomer struct {
 	OrderCount   int       `json:"order_count"`
 }
 
+// periodToDateRange converts a period string into start/end times.
+// Returns nil if period is "all" or unrecognized.
+func periodToDateRange(period string) *repository.DateRange {
+	now := time.Now()
+	var start time.Time
+
+	switch period {
+	case "today":
+		start = time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
+	case "week":
+		// Monday of the current ISO week
+		weekday := int(now.Weekday())
+		if weekday == 0 {
+			weekday = 7 // Sunday → 7
+		}
+		start = time.Date(now.Year(), now.Month(), now.Day()-weekday+1, 0, 0, 0, 0, now.Location())
+	case "month":
+		start = time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, now.Location())
+	case "year":
+		start = time.Date(now.Year(), 1, 1, 0, 0, 0, 0, now.Location())
+	default:
+		return nil
+	}
+
+	// End is one instant after "now" so the query includes the current moment
+	end := now.Add(time.Second)
+	return &repository.DateRange{Start: start, End: end}
+}
+
 // GetDashboardStats returns dashboard statistics using optimized SQL queries
-func (s *DashboardService) GetDashboardStats(ctx context.Context, userID uuid.UUID) (*DashboardStats, error) {
-	stats := &DashboardStats{}
+func (s *DashboardService) GetDashboardStats(ctx context.Context, userID uuid.UUID, period string) (*DashboardStats, error) {
+	stats := &DashboardStats{Period: period}
+
+	dr := periodToDateRange(period)
+
+	// Populate human-readable period labels
+	if dr != nil {
+		stats.PeriodStart = dr.Start.Format("Jan 02, 2006")
+		stats.PeriodEnd = time.Now().Format("Jan 02, 2006")
+	}
 
 	// Get counts
 	paginationParams := pagination.DefaultPagination()
 	paginationParams.PerPage = 1 // We only need the count
 
-	// Tenants - count all tenants (super admin dashboard)
+	// Tenants
 	tenantCount, err := s.tenantRepo.Count(ctx)
 	if err != nil {
 		return nil, err
 	}
 	stats.TotalTenants = tenantCount
 
-	// Customers - show all customers for admin dashboard (skipUserFilter = true)
+	// Customers
 	_, customerCount, err := s.customerRepo.List(ctx, userID, paginationParams, "", true)
 	if err != nil {
 		return nil, err
 	}
 	stats.TotalCustomers = customerCount
 
-	// Products - show all products in dashboard (skip user filter for overview)
+	// Products
 	productParams := &repository.ProductFilterParams{
 		Pagination:     paginationParams,
 		SkipUserFilter: true,
@@ -132,7 +173,7 @@ func (s *DashboardService) GetDashboardStats(ctx context.Context, userID uuid.UU
 	}
 	stats.TotalProducts = productCount
 
-	// Low stock products - show all low stock items
+	// Low stock products
 	lowStockParams := &repository.ProductFilterParams{
 		Pagination:     &pagination.PaginationParams{Page: 1, PerPage: 1000},
 		LowStock:       true,
@@ -144,7 +185,7 @@ func (s *DashboardService) GetDashboardStats(ctx context.Context, userID uuid.UU
 	}
 	stats.LowStockCount = int64(len(lowStockProducts))
 
-	// Orders - show all orders for admin dashboard
+	// Orders
 	orderParams := &repository.OrderFilterParams{
 		Pagination:     paginationParams,
 		SkipUserFilter: true,
@@ -155,7 +196,7 @@ func (s *DashboardService) GetDashboardStats(ctx context.Context, userID uuid.UU
 	}
 	stats.TotalOrders = orderCount
 
-	// Pending orders - show all pending orders
+	// Pending orders
 	pendingStatus := enum.OrderStatusPending
 	pendingOrderParams := &repository.OrderFilterParams{
 		Pagination:     paginationParams,
@@ -168,21 +209,21 @@ func (s *DashboardService) GetDashboardStats(ctx context.Context, userID uuid.UU
 	}
 	stats.PendingOrders = pendingOrderCount
 
-	// Get total revenue using optimized analytics query
-	totalRevenue, err := s.analyticsRepo.GetTotalRevenue(ctx)
+	// Total revenue — period-filtered
+	totalRevenue, err := s.analyticsRepo.GetTotalRevenue(ctx, dr)
 	if err != nil {
 		return nil, err
 	}
 	stats.TotalRevenue = totalRevenue
 
-	// Get monthly revenue using optimized analytics query
+	// Monthly revenue (always current month, used for growth comparison)
 	monthlyRevenue, err := s.analyticsRepo.GetMonthlyRevenue(ctx)
 	if err != nil {
 		return nil, err
 	}
 	stats.MonthlyRevenue = monthlyRevenue
 
-	// Purchases - show all purchases for admin dashboard
+	// Purchases
 	purchaseParams := &repository.PurchaseFilterParams{
 		Pagination:     paginationParams,
 		SkipUserFilter: true,
@@ -193,7 +234,7 @@ func (s *DashboardService) GetDashboardStats(ctx context.Context, userID uuid.UU
 	}
 	stats.TotalPurchases = purchaseCount
 
-	// Pending purchases - show all pending purchases
+	// Pending purchases
 	pendingPurchaseStatus := enum.PurchaseStatusPending
 	pendingPurchaseParams := &repository.PurchaseFilterParams{
 		Pagination:     paginationParams,
@@ -206,8 +247,8 @@ func (s *DashboardService) GetDashboardStats(ctx context.Context, userID uuid.UU
 	}
 	stats.PendingPurchases = pendingPurchaseCount
 
-	// Get daily sales data using optimized analytics query
-	dailySales, err := s.analyticsRepo.GetDailySales(ctx, 7)
+	// Daily sales data
+	dailySales, err := s.analyticsRepo.GetDailySales(ctx, 7, dr)
 	if err != nil {
 		return nil, err
 	}
@@ -220,8 +261,8 @@ func (s *DashboardService) GetDashboardStats(ctx context.Context, userID uuid.UU
 		}
 	}
 
-	// Get top products using optimized analytics query
-	topProducts, err := s.analyticsRepo.GetTopProducts(ctx, 10)
+	// Top products — period-filtered
+	topProducts, err := s.analyticsRepo.GetTopProducts(ctx, 10, dr)
 	if err != nil {
 		return nil, err
 	}
@@ -236,8 +277,8 @@ func (s *DashboardService) GetDashboardStats(ctx context.Context, userID uuid.UU
 		}
 	}
 
-	// Get sales by category using optimized analytics query
-	salesByCategory, err := s.analyticsRepo.GetSalesByCategory(ctx)
+	// Sales by category — period-filtered
+	salesByCategory, err := s.analyticsRepo.GetSalesByCategory(ctx, dr)
 	if err != nil {
 		return nil, err
 	}
@@ -252,8 +293,8 @@ func (s *DashboardService) GetDashboardStats(ctx context.Context, userID uuid.UU
 		}
 	}
 
-	// Get top customers using optimized analytics query
-	topCustomers, err := s.analyticsRepo.GetTopCustomers(ctx, 10)
+	// Top customers — period-filtered
+	topCustomers, err := s.analyticsRepo.GetTopCustomers(ctx, 10, dr)
 	if err != nil {
 		return nil, err
 	}

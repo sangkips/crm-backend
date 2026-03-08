@@ -25,13 +25,24 @@ func (h *DashboardHandler) GetStats(c *gin.Context) {
 		return
 	}
 
+	// Read optional ?period= query param. Default to "month".
+	period := c.DefaultQuery("period", "month")
+
+	// Validate period value
+	switch period {
+	case "today", "week", "month", "year", "all":
+		// valid
+	default:
+		period = "month"
+	}
+
 	// For super admins, skip tenant scope to see all data across tenants
 	ctx := c.Request.Context()
 	if IsSuperAdmin(c) {
 		ctx = infraRepo.WithSkipTenantScope(ctx, true)
 	}
 
-	stats, err := h.dashboardService.GetDashboardStats(ctx, *userID)
+	stats, err := h.dashboardService.GetDashboardStats(ctx, *userID, period)
 	if err != nil {
 		response.Error(c, err)
 		return

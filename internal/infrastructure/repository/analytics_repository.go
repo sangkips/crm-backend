@@ -20,17 +20,13 @@ func NewAnalyticsRepository(db *gorm.DB) domainRepo.AnalyticsRepository {
 }
 
 // getTenantFilter returns the tenant filter clause and args for raw SQL queries
-// Returns empty string and nil if tenant scope should be skipped (super admin)
-// Returns "1 = 0" if tenant context is missing (fail-safe)
 func (r *analyticsRepository) getTenantFilter(ctx context.Context, tableName string) (string, []interface{}) {
-	// Check if tenant scope should be skipped (super admin)
 	if skipScope, ok := ctx.Value(SkipTenantScopeKey).(bool); ok && skipScope {
 		return "", nil
 	}
 
 	tenantID, ok := ctx.Value(TenantIDKey).(uuid.UUID)
 	if !ok {
-		// Fail-safe: return no results if tenant context missing
 		return "1 = 0", nil
 	}
 
@@ -40,7 +36,18 @@ func (r *analyticsRepository) getTenantFilter(ctx context.Context, tableName str
 	return "tenant_id = ?", []interface{}{tenantID}
 }
 
-func (r *analyticsRepository) GetTopProducts(ctx context.Context, limit int) ([]domainRepo.TopProductResult, error) {
+// applyDateRange appends date-range WHERE clauses and args when a DateRange is provided.
+// columnExpr is the SQL column expression e.g. "o.order_date" or "order_date".
+func applyDateRange(whereClause string, args []interface{}, dr *domainRepo.DateRange, columnExpr string) (string, []interface{}) {
+	if dr == nil {
+		return whereClause, args
+	}
+	whereClause += " AND " + columnExpr + " >= ? AND " + columnExpr + " < ?"
+	args = append(args, dr.Start, dr.End)
+	return whereClause, args
+}
+
+func (r *analyticsRepository) GetTopProducts(ctx context.Context, limit int, dr *domainRepo.DateRange) ([]domainRepo.TopProductResult, error) {
 	var results []domainRepo.TopProductResult
 
 	tenantFilter, tenantArgs := r.getTenantFilter(ctx, "o")
@@ -51,6 +58,7 @@ func (r *analyticsRepository) GetTopProducts(ctx context.Context, limit int) ([]
 		whereClause += " AND " + tenantFilter
 		args = append(args, tenantArgs...)
 	}
+	whereClause, args = applyDateRange(whereClause, args, dr, "o.order_date")
 	args = append(args, limit)
 
 	err := r.db.WithContext(ctx).Raw(`
@@ -76,7 +84,7 @@ func (r *analyticsRepository) GetTopProducts(ctx context.Context, limit int) ([]
 	return results, nil
 }
 
-func (r *analyticsRepository) GetSalesByCategory(ctx context.Context) ([]domainRepo.CategorySalesResult, error) {
+func (r *analyticsRepository) GetSalesByCategory(ctx context.Context, dr *domainRepo.DateRange) ([]domainRepo.CategorySalesResult, error) {
 	var results []domainRepo.CategorySalesResult
 
 	tenantFilter, tenantArgs := r.getTenantFilter(ctx, "o")
@@ -87,6 +95,7 @@ func (r *analyticsRepository) GetSalesByCategory(ctx context.Context) ([]domainR
 		whereClause += " AND " + tenantFilter
 		args = append(args, tenantArgs...)
 	}
+	whereClause, args = applyDateRange(whereClause, args, dr, "o.order_date")
 
 	// First get total sales for percentage calculation
 	var totalSales float64
@@ -129,7 +138,7 @@ func (r *analyticsRepository) GetSalesByCategory(ctx context.Context) ([]domainR
 	return results, nil
 }
 
-func (r *analyticsRepository) GetTopCustomers(ctx context.Context, limit int) ([]domainRepo.TopCustomerResult, error) {
+func (r *analyticsRepository) GetTopCustomers(ctx context.Context, limit int, dr *domainRepo.DateRange) ([]domainRepo.TopCustomerResult, error) {
 	var results []domainRepo.TopCustomerResult
 
 	tenantFilter, tenantArgs := r.getTenantFilter(ctx, "o")
@@ -140,6 +149,7 @@ func (r *analyticsRepository) GetTopCustomers(ctx context.Context, limit int) ([
 		whereClause += " AND " + tenantFilter
 		args = append(args, tenantArgs...)
 	}
+	whereClause, args = applyDateRange(whereClause, args, dr, "o.order_date")
 	args = append(args, limit)
 
 	err := r.db.WithContext(ctx).Raw(`
@@ -163,7 +173,7 @@ func (r *analyticsRepository) GetTopCustomers(ctx context.Context, limit int) ([
 	return results, nil
 }
 
-func (r *analyticsRepository) GetDailySales(ctx context.Context, days int) ([]domainRepo.DailySalesResult, error) {
+func (r *analyticsRepository) GetDailySales(ctx context.Context, days int, dr *domainRepo.DateRange) ([]domainRepo.DailySalesResult, error) {
 	results := make([]domainRepo.DailySalesResult, 0, days)
 	now := time.Now()
 
@@ -210,7 +220,7 @@ func (r *analyticsRepository) GetDailySales(ctx context.Context, days int) ([]do
 	return results, nil
 }
 
-func (r *analyticsRepository) GetTotalRevenue(ctx context.Context) (float64, error) {
+func (r *analyticsRepository) GetTotalRevenue(ctx context.Context, dr *domainRepo.DateRange) (float64, error) {
 	tenantFilter, tenantArgs := r.getTenantFilter(ctx, "")
 	whereClause := "order_status = 1"
 	args := []interface{}{}
@@ -219,6 +229,7 @@ func (r *analyticsRepository) GetTotalRevenue(ctx context.Context) (float64, err
 		whereClause += " AND " + tenantFilter
 		args = append(args, tenantArgs...)
 	}
+	whereClause, args = applyDateRange(whereClause, args, dr, "order_date")
 
 	var revenue float64
 	err := r.db.WithContext(ctx).Raw(`
