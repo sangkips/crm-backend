@@ -11,11 +11,11 @@ import (
 // Quotation represents a price quotation for a customer
 type Quotation struct {
 	ID                 uuid.UUID            `gorm:"type:uuid;primary_key" json:"id"`
-	TenantID           uuid.UUID            `gorm:"type:uuid;not null;index" json:"tenant_id"`
+	TenantID           uuid.UUID            `gorm:"type:uuid;not null;uniqueIndex:idx_tenant_quotation_reference;index" json:"tenant_id"`
 	UserID             uuid.UUID            `gorm:"type:uuid;not null;index" json:"user_id"`
 	CustomerID         *uuid.UUID           `gorm:"type:uuid;index" json:"customer_id,omitempty"`
 	Date               time.Time            `gorm:"type:date;not null" json:"date"`
-	Reference          string               `gorm:"size:100;unique;not null" json:"reference"`
+	Reference          string               `gorm:"size:100;uniqueIndex:idx_tenant_quotation_reference;not null" json:"reference"`
 	CustomerName       string               `gorm:"size:255" json:"customer_name"`
 	TaxPercentage      float64              `gorm:"type:decimal(5,2);default:0" json:"tax_percentage"`
 	TaxAmount          float64              `gorm:"type:decimal(15,2);default:0" json:"tax_amount"`
