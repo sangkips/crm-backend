@@ -58,9 +58,6 @@ func SuccessWithPagination[T any](c *gin.Context, statusCode int, message string
 
 // Error sends an error response
 func Error(c *gin.Context, err error) {
-	// Add error to gin context for internal logging middleware before exposing the generic format
-	c.Error(err)
-
 	appErr := apperror.GetAppError(err)
 	c.JSON(appErr.Code, APIResponse{
 		Success: false,
