@@ -92,6 +92,6 @@ func GetAppError(err error) *AppError {
 	}
 	return &AppError{
 		Code:    http.StatusInternalServerError,
-		Message: err.Error(),
+		Message: "Internal server error",
 	}
 }
