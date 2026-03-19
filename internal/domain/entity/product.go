@@ -12,13 +12,13 @@ import (
 // Product represents a product in the inventory
 type Product struct {
 	ID            uuid.UUID      `gorm:"type:uuid;primary_key" json:"id"`
-	TenantID      uuid.UUID      `gorm:"type:uuid;not null;index" json:"tenant_id"`
+	TenantID      uuid.UUID      `gorm:"type:uuid;not null;uniqueIndex:idx_tenant_product_slug;uniqueIndex:idx_tenant_product_code;index" json:"tenant_id"`
 	UserID        uuid.UUID      `gorm:"type:uuid;not null;index" json:"user_id"`
 	CategoryID    *uuid.UUID     `gorm:"type:uuid;index" json:"category_id,omitempty"`
 	UnitID        *uuid.UUID     `gorm:"type:uuid;index" json:"unit_id,omitempty"`
 	Name          string         `gorm:"size:255;not null" json:"name"`
-	Slug          string         `gorm:"size:255;unique;not null" json:"slug"`
-	Code          string         `gorm:"size:100;unique;not null" json:"code"`
+	Slug          string         `gorm:"size:255;uniqueIndex:idx_tenant_product_slug;not null" json:"slug"`
+	Code          string         `gorm:"size:100;uniqueIndex:idx_tenant_product_code;not null" json:"code"`
 	Quantity      int            `gorm:"default:0" json:"quantity"`
 	QuantityAlert int            `gorm:"default:0" json:"quantity_alert"`
 	BuyingPrice   int64          `gorm:"default:0" json:"buying_price"`  // Stored in cents
@@ -122,10 +122,10 @@ func (p Product) MarshalJSON() ([]byte, error) {
 // Category represents a product category
 type Category struct {
 	ID        uuid.UUID      `gorm:"type:uuid;primary_key" json:"id"`
-	TenantID  uuid.UUID      `gorm:"type:uuid;not null;index" json:"tenant_id"`
+	TenantID  uuid.UUID      `gorm:"type:uuid;not null;uniqueIndex:idx_tenant_category_slug;index" json:"tenant_id"`
 	UserID    uuid.UUID      `gorm:"type:uuid;not null;index" json:"user_id"`
 	Name      string         `gorm:"size:255;not null" json:"name"`
-	Slug      string         `gorm:"size:255;unique;not null" json:"slug"`
+	Slug      string         `gorm:"size:255;uniqueIndex:idx_tenant_category_slug;not null" json:"slug"`
 	CreatedAt time.Time      `json:"created_at"`
 	UpdatedAt time.Time      `json:"updated_at"`
 	DeletedAt gorm.DeletedAt `gorm:"index" json:"-"`
@@ -152,10 +152,10 @@ func (Category) TableName() string {
 // Unit represents a unit of measurement
 type Unit struct {
 	ID        uuid.UUID      `gorm:"type:uuid;primary_key" json:"id"`
-	TenantID  uuid.UUID      `gorm:"type:uuid;not null;index" json:"tenant_id"`
+	TenantID  uuid.UUID      `gorm:"type:uuid;not null;uniqueIndex:idx_tenant_unit_slug;index" json:"tenant_id"`
 	UserID    uuid.UUID      `gorm:"type:uuid;not null;index" json:"user_id"`
 	Name      string         `gorm:"size:255;not null" json:"name"`
-	Slug      string         `gorm:"size:255;unique;not null" json:"slug"`
+	Slug      string         `gorm:"size:255;uniqueIndex:idx_tenant_unit_slug;not null" json:"slug"`
 	ShortCode string         `gorm:"size:50" json:"short_code"`
 	CreatedAt time.Time      `json:"created_at"`
 	UpdatedAt time.Time      `json:"updated_at"`

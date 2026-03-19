@@ -11,13 +11,13 @@ import (
 // Purchase represents a purchase from a supplier
 type Purchase struct {
 	ID            uuid.UUID           `gorm:"type:uuid;primary_key" json:"id"`
-	TenantID      uuid.UUID           `gorm:"type:uuid;not null;index" json:"tenant_id"`
+	TenantID      uuid.UUID           `gorm:"type:uuid;not null;uniqueIndex:idx_tenant_purchase_no;index" json:"tenant_id"`
 	UserID        uuid.UUID           `gorm:"type:uuid;not null;index" json:"user_id"`
 	SupplierID    *uuid.UUID          `gorm:"type:uuid;index" json:"supplier_id,omitempty"`
 	CreatedByID   *uuid.UUID          `gorm:"type:uuid;column:created_by" json:"created_by,omitempty"`
 	UpdatedByID   *uuid.UUID          `gorm:"type:uuid;column:updated_by" json:"updated_by,omitempty"`
 	Date          time.Time           `gorm:"type:date;not null" json:"date"`
-	PurchaseNo    string              `gorm:"size:100;unique;not null" json:"purchase_no"`
+	PurchaseNo    string              `gorm:"size:100;uniqueIndex:idx_tenant_purchase_no;not null" json:"purchase_no"`
 	Status        enum.PurchaseStatus `gorm:"default:0" json:"status"`
 	TotalAmount   float64             `gorm:"type:decimal(15,2);default:0" json:"total_amount"`
 	TaxPercentage float64             `gorm:"type:decimal(5,2);default:0" json:"tax_percentage"`

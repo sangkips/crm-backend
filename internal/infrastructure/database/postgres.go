@@ -46,6 +46,41 @@ func NewPostgresDB(cfg *config.DatabaseConfig) (*gorm.DB, error) {
 func AutoMigrate(db *gorm.DB) error {
 	log.Println("Running database migrations...")
 
+	// Drop old global unique constraints that have been replaced with tenant-scoped composite indices
+	constraintsToDrop := []struct {
+		table      string
+		constraint string
+	}{
+		{"quotations", "quotations_reference_key"},
+		{"quotations", "uni_quotations_reference"},
+		{"products", "products_slug_key"},
+		{"products", "products_code_key"},
+		{"products", "uni_products_slug"},
+		{"products", "uni_products_code"},
+		{"categories", "categories_slug_key"},
+		{"categories", "uni_categories_slug"},
+		{"units", "units_slug_key"},
+		{"units", "uni_units_slug"},
+		{"orders", "orders_invoice_no_key"},
+		{"orders", "uni_orders_invoice_no"},
+		{"purchases", "purchases_purchase_no_key"},
+		{"purchases", "uni_purchases_purchase_no"},
+	}
+
+	for _, c := range constraintsToDrop {
+		query := fmt.Sprintf(`
+			DO $$
+			BEGIN
+				IF EXISTS (SELECT 1 FROM pg_constraint WHERE conname = '%s') THEN
+					ALTER TABLE %s DROP CONSTRAINT %s;
+				END IF;
+			END $$;
+		`, c.constraint, c.table, c.constraint)
+		if err := db.Exec(query).Error; err != nil {
+			log.Printf("Warning: failed to drop constraint %s on %s: %v", c.constraint, c.table, err)
+		}
+	}
+
 	err := db.AutoMigrate(
 		// Tenant entities (must be first for foreign key references)
 		&entity.Tenant{},

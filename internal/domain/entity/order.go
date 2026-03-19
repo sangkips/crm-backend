@@ -12,7 +12,7 @@ import (
 // Order represents a sales order
 type Order struct {
 	ID            uuid.UUID        `gorm:"type:uuid;primary_key" json:"id"`
-	TenantID      uuid.UUID        `gorm:"type:uuid;not null;index" json:"tenant_id"`
+	TenantID      uuid.UUID        `gorm:"type:uuid;not null;uniqueIndex:idx_tenant_order_invoice;index" json:"tenant_id"`
 	UserID        uuid.UUID        `gorm:"type:uuid;not null;index" json:"user_id"`
 	CustomerID    *uuid.UUID       `gorm:"type:uuid;index" json:"customer_id,omitempty"`
 	OrderDate     time.Time        `gorm:"type:date;not null" json:"order_date"`
@@ -21,7 +21,7 @@ type Order struct {
 	SubTotal      int64            `gorm:"default:0" json:"-"` // Stored in cents, excluded from JSON
 	VAT           int64            `gorm:"default:0" json:"-"` // Stored in cents, excluded from JSON
 	Total         int64            `gorm:"default:0" json:"-"` // Stored in cents, excluded from JSON
-	InvoiceNo     string           `gorm:"size:100;unique;not null" json:"invoice_no"`
+	InvoiceNo     string           `gorm:"size:100;uniqueIndex:idx_tenant_order_invoice;not null" json:"invoice_no"`
 	PaymentType   string           `gorm:"size:50" json:"payment_type"`
 	Pay           int64            `gorm:"default:0" json:"-"` // Stored in cents, excluded from JSON
 	Due           int64            `gorm:"default:0" json:"-"` // Stored in cents, excluded from JSON
