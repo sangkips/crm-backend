@@ -47,8 +47,17 @@ type DateRange struct {
 	End   time.Time
 }
 
+// DailySalesReportResult holds revenue and order count for a single day
+type DailySalesReportResult struct {
+	Date         time.Time
+	TotalRevenue float64
+	OrdersCount  int
+}
+
 // AnalyticsRepository defines interface for analytics/aggregation queries
 type AnalyticsRepository interface {
+	// GetDailySalesReport returns total revenue and order count for completed orders on a given day
+	GetDailySalesReport(ctx context.Context, dr *DateRange) (*DailySalesReportResult, error)
 	// GetTopProducts returns top selling products by revenue
 	GetTopProducts(ctx context.Context, limit int, dr *DateRange) ([]TopProductResult, error)
 
@@ -60,6 +69,9 @@ type AnalyticsRepository interface {
 
 	// GetDailySales returns daily sales data for the last N days
 	GetDailySales(ctx context.Context, days int, dr *DateRange) ([]DailySalesResult, error)
+
+	// GetTotalPurchasesAmount returns the sum of total_amount from all purchases
+	GetTotalPurchasesAmount(ctx context.Context) (float64, error)
 
 	// GetTotalRevenue returns total revenue from completed orders
 	GetTotalRevenue(ctx context.Context, dr *DateRange) (float64, error)

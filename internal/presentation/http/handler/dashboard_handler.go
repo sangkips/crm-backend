@@ -48,5 +48,9 @@ func (h *DashboardHandler) GetStats(c *gin.Context) {
 		return
 	}
 
+	if !IsSuperAdmin(c) {
+		stats.TotalTenants = 0
+	}
+
 	response.OK(c, "Dashboard stats retrieved successfully", stats)
 }

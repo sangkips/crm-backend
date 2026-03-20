@@ -44,9 +44,11 @@ type DashboardStats struct {
 	TotalCustomers    int64                `json:"total_customers"`
 	TotalProducts     int64                `json:"total_products"`
 	TotalOrders       int64                `json:"total_orders"`
-	TotalPurchases    int64                `json:"total_purchases"`
-	TotalTenants      int64                `json:"total_tenants"`
+	TotalPurchases      float64              `json:"total_purchases"`
+	TotalPurchaseOrders int64                `json:"total_purchase_orders"`
+	TotalTenants      int64                `json:"total_tenants,omitempty"`
 	TotalRevenue      float64              `json:"total_revenue"`
+	DailyRevenue      float64              `json:"daily_revenue"`
 	MonthlyRevenue    float64              `json:"monthly_revenue"`
 	LowStockCount     int64                `json:"low_stock_count"`
 	PendingOrders     int64                `json:"pending_orders"`
@@ -209,14 +211,26 @@ func (s *DashboardService) GetDashboardStats(ctx context.Context, userID uuid.UU
 	}
 	stats.PendingOrders = pendingOrderCount
 
-	// Total revenue — period-filtered
-	totalRevenue, err := s.analyticsRepo.GetTotalRevenue(ctx, dr)
+	// Total revenue — all-time, no date filter
+	totalRevenue, err := s.analyticsRepo.GetTotalRevenue(ctx, nil)
 	if err != nil {
 		return nil, err
 	}
 	stats.TotalRevenue = totalRevenue
 
-	// Monthly revenue (always current month, used for growth comparison)
+	// Daily revenue — today only
+	now := time.Now()
+	todayDr := &repository.DateRange{
+		Start: time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location()),
+		End:   time.Date(now.Year(), now.Month(), now.Day()+1, 0, 0, 0, 0, now.Location()),
+	}
+	dailyRevenue, err := s.analyticsRepo.GetTotalRevenue(ctx, todayDr)
+	if err != nil {
+		return nil, err
+	}
+	stats.DailyRevenue = dailyRevenue
+
+	// Monthly revenue (always current month)
 	monthlyRevenue, err := s.analyticsRepo.GetMonthlyRevenue(ctx)
 	if err != nil {
 		return nil, err
@@ -232,7 +246,13 @@ func (s *DashboardService) GetDashboardStats(ctx context.Context, userID uuid.UU
 	if err != nil {
 		return nil, err
 	}
-	stats.TotalPurchases = purchaseCount
+	stats.TotalPurchaseOrders = purchaseCount
+
+	totalPurchasesAmount, err := s.analyticsRepo.GetTotalPurchasesAmount(ctx)
+	if err != nil {
+		return nil, err
+	}
+	stats.TotalPurchases = totalPurchasesAmount
 
 	// Pending purchases
 	pendingPurchaseStatus := enum.PurchaseStatusPending

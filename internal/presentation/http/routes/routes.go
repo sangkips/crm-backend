@@ -138,7 +138,7 @@ func registerProtectedRoutes(protected *gin.RouterGroup, h *Handlers, deps *Deps
 	registerQuotationRoutes(protected, h)
 
 	// Reports
-	registerReportRoutes(protected)
+	registerReportRoutes(protected, h)
 
 	// Users (Admin)
 	registerUserRoutes(protected, h)
@@ -275,7 +275,7 @@ func registerQuotationRoutes(protected *gin.RouterGroup, h *Handlers) {
 	}
 }
 
-func registerReportRoutes(protected *gin.RouterGroup) {
+func registerReportRoutes(protected *gin.RouterGroup, h *Handlers) {
 	reports := protected.Group("/reports")
 	reports.Use(middleware.RequirePermission("view-reports"))
 	{

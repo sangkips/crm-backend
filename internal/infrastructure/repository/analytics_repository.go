@@ -38,13 +38,48 @@ func (r *analyticsRepository) getTenantFilter(ctx context.Context, tableName str
 
 // applyDateRange appends date-range WHERE clauses and args when a DateRange is provided.
 // columnExpr is the SQL column expression e.g. "o.order_date" or "order_date".
+// Dates are passed as plain YYYY-MM-DD strings to avoid timestamptz vs date cast issues.
 func applyDateRange(whereClause string, args []interface{}, dr *domainRepo.DateRange, columnExpr string) (string, []interface{}) {
 	if dr == nil {
 		return whereClause, args
 	}
 	whereClause += " AND " + columnExpr + " >= ? AND " + columnExpr + " < ?"
-	args = append(args, dr.Start, dr.End)
+	args = append(args, dr.Start.Format("2006-01-02"), dr.End.Format("2006-01-02"))
 	return whereClause, args
+}
+
+func (r *analyticsRepository) GetDailySalesReport(ctx context.Context, dr *domainRepo.DateRange) (*domainRepo.DailySalesReportResult, error) {
+	tenantFilter, tenantArgs := r.getTenantFilter(ctx, "")
+	whereClause := "order_status = 1"
+	args := []interface{}{}
+
+	if tenantFilter != "" {
+		whereClause += " AND " + tenantFilter
+		args = append(args, tenantArgs...)
+	}
+	whereClause, args = applyDateRange(whereClause, args, dr, "order_date")
+
+	var result struct {
+		TotalRevenue float64
+		OrdersCount  int
+	}
+	err := r.db.WithContext(ctx).Raw(`
+		SELECT COALESCE(SUM(total), 0) / 100.0 as total_revenue, COUNT(*) as orders_count
+		FROM orders
+		WHERE `+whereClause, args...).Scan(&result).Error
+	if err != nil {
+		return nil, err
+	}
+
+	date := time.Now()
+	if dr != nil {
+		date = dr.Start
+	}
+	return &domainRepo.DailySalesReportResult{
+		Date:         date,
+		TotalRevenue: result.TotalRevenue,
+		OrdersCount:  result.OrdersCount,
+	}, nil
 }
 
 func (r *analyticsRepository) GetTopProducts(ctx context.Context, limit int, dr *domainRepo.DateRange) ([]domainRepo.TopProductResult, error) {
@@ -191,7 +226,7 @@ func (r *analyticsRepository) GetDailySales(ctx context.Context, days int, dr *d
 
 		args := []interface{}{}
 		args = append(args, tenantArgs...)
-		args = append(args, startOfDay, endOfDay)
+		args = append(args, startOfDay.Format("2006-01-02"), endOfDay.Format("2006-01-02"))
 
 		var revenue sql.NullFloat64
 		err := r.db.WithContext(ctx).Raw(`
@@ -252,7 +287,7 @@ func (r *analyticsRepository) GetMonthlyRevenue(ctx context.Context) (float64, e
 	if tenantFilter != "" {
 		whereClause += " AND " + tenantFilter
 	}
-	args = append(args, startOfMonth)
+	args = append(args, startOfMonth.Format("2006-01-02"))
 	args = append(args, tenantArgs...)
 
 	var revenue float64
@@ -263,4 +298,23 @@ func (r *analyticsRepository) GetMonthlyRevenue(ctx context.Context) (float64, e
 		args...).Scan(&revenue).Error
 
 	return revenue, err
+}
+
+func (r *analyticsRepository) GetTotalPurchasesAmount(ctx context.Context) (float64, error) {
+	tenantFilter, tenantArgs := r.getTenantFilter(ctx, "")
+	whereClause := "deleted_at IS NULL"
+	args := []interface{}{}
+
+	if tenantFilter != "" {
+		whereClause += " AND " + tenantFilter
+		args = append(args, tenantArgs...)
+	}
+
+	var total float64
+	err := r.db.WithContext(ctx).Raw(`
+		SELECT COALESCE(SUM(total_amount), 0)
+		FROM purchases
+		WHERE `+whereClause, args...).Scan(&total).Error
+
+	return total, err
 }
