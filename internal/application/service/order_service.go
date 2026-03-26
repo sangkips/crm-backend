@@ -345,7 +345,7 @@ func (s *OrderService) PayDue(ctx context.Context, userID, orderID uuid.UUID, am
 }
 
 // checkAndNotifyLowStock checks if any ordered products have hit low stock and emails admins
-func (s *OrderService) checkAndNotifyLowStock(reqCtx context.Context, tenantID uuid.UUID, productIDs []uuid.UUID) {
+func (s *OrderService) checkAndNotifyLowStock(_ context.Context, tenantID uuid.UUID, productIDs []uuid.UUID) {
 	// Use a background context since this runs in a goroutine after the HTTP response
 	ctx := infraRepo.WithTenant(context.Background(), tenantID)
 

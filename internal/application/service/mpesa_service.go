@@ -166,12 +166,13 @@ func (s *MpesaService) HandleCallback(ctx context.Context, callbackBody *mpesa.S
 	tx.ResultDesc = cb.ResultDesc
 	tx.MpesaReceiptNumber = cb.GetMpesaReceiptNumber()
 
-	if cb.ResultCode == 0 {
+	switch cb.ResultCode {
+	case 0:
 		tx.Status = enum.MpesaStatusSuccess
-	} else if cb.ResultCode == 1032 {
+	case 1032:
 		// 1032 = Request cancelled by user
 		tx.Status = enum.MpesaStatusCancelled
-	} else {
+	default:
 		tx.Status = enum.MpesaStatusFailed
 	}
 
