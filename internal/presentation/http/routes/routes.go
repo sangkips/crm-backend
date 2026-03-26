@@ -90,6 +90,8 @@ func registerAuthRoutes(v1 *gin.RouterGroup, h *Handlers) {
 		auth.POST("/refresh", h.Auth.RefreshToken)
 		auth.POST("/forgot-password", h.Auth.ForgotPassword)
 		auth.POST("/reset-password", h.Auth.ResetPassword)
+		auth.GET("/verify-email", h.Auth.VerifyEmail)
+		auth.POST("/resend-verification", h.Auth.ResendVerification)
 		// Google OAuth routes
 		auth.GET("/google", h.Auth.GoogleAuth)
 		auth.GET("/google/callback", h.Auth.GoogleCallback)

@@ -20,13 +20,14 @@ import (
 
 // AuthService handles authentication-related operations
 type AuthService struct {
-	userRepo          repository.UserRepository
-	roleRepo          repository.RoleRepository
-	tenantRepo        repository.TenantRepository
-	passwordResetRepo repository.PasswordResetTokenRepository
-	jwtManager        *utils.JWTManager
-	emailService      *email.EmailService
-	googleOAuth       *oauth.GoogleOAuthService
+	userRepo               repository.UserRepository
+	roleRepo               repository.RoleRepository
+	tenantRepo             repository.TenantRepository
+	passwordResetRepo      repository.PasswordResetTokenRepository
+	emailVerificationRepo  repository.EmailVerificationTokenRepository
+	jwtManager             *utils.JWTManager
+	emailService           *email.EmailService
+	googleOAuth            *oauth.GoogleOAuthService
 }
 
 // NewAuthService creates a new auth service
@@ -35,18 +36,20 @@ func NewAuthService(
 	roleRepo repository.RoleRepository,
 	tenantRepo repository.TenantRepository,
 	passwordResetRepo repository.PasswordResetTokenRepository,
+	emailVerificationRepo repository.EmailVerificationTokenRepository,
 	jwtManager *utils.JWTManager,
 	emailService *email.EmailService,
 	googleOAuth *oauth.GoogleOAuthService,
 ) *AuthService {
 	return &AuthService{
-		userRepo:          userRepo,
-		roleRepo:          roleRepo,
-		tenantRepo:        tenantRepo,
-		passwordResetRepo: passwordResetRepo,
-		jwtManager:        jwtManager,
-		emailService:      emailService,
-		googleOAuth:       googleOAuth,
+		userRepo:              userRepo,
+		roleRepo:              roleRepo,
+		tenantRepo:            tenantRepo,
+		passwordResetRepo:     passwordResetRepo,
+		emailVerificationRepo: emailVerificationRepo,
+		jwtManager:            jwtManager,
+		emailService:          emailService,
+		googleOAuth:           googleOAuth,
 	}
 }
 
@@ -75,6 +78,11 @@ func (s *AuthService) Login(ctx context.Context, input *LoginInput) (*LoginOutpu
 
 	if !utils.CheckPasswordHash(input.Password, user.Password) {
 		return nil, apperror.ErrInvalidCredentials
+	}
+
+	// Check if email is verified (skip for OAuth users)
+	if user.EmailVerifiedAt == nil && user.Provider == "local" {
+		return nil, apperror.ErrEmailNotVerified
 	}
 
 	// Get user with roles
@@ -201,6 +209,11 @@ func (s *AuthService) Register(ctx context.Context, input *RegisterInput) (*enti
 
 	if err := s.tenantRepo.AddMember(ctx, membership); err != nil {
 		fmt.Printf("WARNING: Failed to add membership for user %s: %v\n", user.Email, err)
+	}
+
+	// Send email verification
+	if err := s.sendVerificationEmail(ctx, user.Email); err != nil {
+		fmt.Printf("WARNING: Failed to send verification email to %s: %v\n", user.Email, err)
 	}
 
 	return user, nil
@@ -491,6 +504,113 @@ func (s *AuthService) ResetPassword(ctx context.Context, input *ResetPasswordInp
 	_ = s.passwordResetRepo.DeleteByEmail(ctx, input.Email)
 
 	return nil
+}
+
+// sendVerificationEmail generates a token and sends an email verification email
+func (s *AuthService) sendVerificationEmail(ctx context.Context, emailAddr string) error {
+	// Delete any existing tokens for this email
+	_ = s.emailVerificationRepo.DeleteByEmail(ctx, emailAddr)
+
+	// Generate a secure random token
+	tokenBytes := make([]byte, 32)
+	if _, err := rand.Read(tokenBytes); err != nil {
+		return err
+	}
+	token := hex.EncodeToString(tokenBytes)
+
+	// Create the verification token (expires in 24 hours)
+	verificationToken := &entity.EmailVerificationToken{
+		Email:     emailAddr,
+		Token:     token,
+		ExpiresAt: time.Now().Add(24 * time.Hour),
+		Used:      false,
+	}
+
+	if err := s.emailVerificationRepo.Create(ctx, verificationToken); err != nil {
+		return err
+	}
+
+	// Send the verification email
+	return s.emailService.SendEmailVerificationEmail(emailAddr, token)
+}
+
+// VerifyEmailInput represents the verify email input
+type VerifyEmailInput struct {
+	Email string
+	Token string
+}
+
+// VerifyEmail verifies a user's email address using a valid token
+func (s *AuthService) VerifyEmail(ctx context.Context, input *VerifyEmailInput) error {
+	// Get the token from the repository
+	verificationToken, err := s.emailVerificationRepo.GetByToken(ctx, input.Token)
+	if err != nil {
+		return err
+	}
+	if verificationToken == nil {
+		return apperror.NewBadRequestError("Invalid or expired verification token")
+	}
+
+	// Verify the token matches the email
+	if verificationToken.Email != input.Email {
+		return apperror.NewBadRequestError("Invalid or expired verification token")
+	}
+
+	// Check if token is valid (not expired and not used)
+	if !verificationToken.IsValid() {
+		return apperror.NewBadRequestError("Invalid or expired verification token")
+	}
+
+	// Get the user
+	user, err := s.userRepo.GetByEmail(ctx, input.Email)
+	if err != nil {
+		return err
+	}
+	if user == nil {
+		return apperror.NewBadRequestError("Invalid or expired verification token")
+	}
+
+	// Mark email as verified
+	now := time.Now()
+	user.EmailVerifiedAt = &now
+	if err := s.userRepo.Update(ctx, user); err != nil {
+		return err
+	}
+
+	// Mark the token as used
+	_ = s.emailVerificationRepo.MarkAsUsed(ctx, input.Token)
+
+	// Delete all tokens for this email (cleanup)
+	_ = s.emailVerificationRepo.DeleteByEmail(ctx, input.Email)
+
+	return nil
+}
+
+// ResendVerificationEmailInput represents the resend verification email input
+type ResendVerificationEmailInput struct {
+	Email string
+}
+
+// ResendVerificationEmail resends the email verification email
+func (s *AuthService) ResendVerificationEmail(ctx context.Context, input *ResendVerificationEmailInput) error {
+	// Check if user exists
+	user, err := s.userRepo.GetByEmail(ctx, input.Email)
+	if err != nil {
+		// Don't reveal if email exists
+		return nil
+	}
+	if user == nil {
+		// Don't reveal if email exists
+		return nil
+	}
+
+	// Check if already verified
+	if user.EmailVerifiedAt != nil {
+		return apperror.NewBadRequestError("Email is already verified")
+	}
+
+	// Send verification email
+	return s.sendVerificationEmail(ctx, user.Email)
 }
 
 // GoogleAuthInput represents the Google OAuth callback input

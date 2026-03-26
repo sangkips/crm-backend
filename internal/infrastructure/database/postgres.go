@@ -91,6 +91,7 @@ func AutoMigrate(db *gorm.DB) error {
 		&entity.Role{},
 		&entity.Permission{},
 		&entity.PasswordResetToken{},
+		&entity.EmailVerificationToken{},
 
 		// Product-related entities
 		&entity.Category{},

@@ -40,3 +40,14 @@ type ChangePasswordRequest struct {
 	NewPassword     string `json:"new_password" binding:"required,min=8"`
 	ConfirmPassword string `json:"confirm_password" binding:"required,eqfield=NewPassword"`
 }
+
+// VerifyEmailRequest represents an email verification request
+type VerifyEmailRequest struct {
+	Token string `form:"token" binding:"required"`
+	Email string `form:"email" binding:"required,email"`
+}
+
+// ResendVerificationRequest represents a resend verification email request
+type ResendVerificationRequest struct {
+	Email string `json:"email" binding:"required,email"`
+}
