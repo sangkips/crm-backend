@@ -69,6 +69,7 @@ func main() {
 	permissionRepo := repository.NewPermissionRepository(db)
 	analyticsRepo := repository.NewAnalyticsRepository(db)
 	passwordResetRepo := repository.NewPasswordResetTokenRepository(db)
+	emailVerificationRepo := repository.NewEmailVerificationTokenRepository(db)
 	mpesaTxRepo := repository.NewMpesaTransactionRepository(db)
 
 	// Initialize email service
@@ -92,7 +93,7 @@ func main() {
 	})
 
 	// Initialize services
-	authService := service.NewAuthService(userRepo, roleRepo, tenantRepo, passwordResetRepo, jwtManager, emailService, googleOAuthService)
+	authService := service.NewAuthService(userRepo, roleRepo, tenantRepo, passwordResetRepo, emailVerificationRepo, jwtManager, emailService, googleOAuthService)
 	tenantService := service.NewTenantService(tenantRepo)
 	productService := service.NewProductService(productRepo, categoryRepo, unitRepo)
 	categoryService := service.NewCategoryService(categoryRepo)

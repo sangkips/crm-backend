@@ -77,7 +77,7 @@ func (h *AuthHandler) Register(c *gin.Context) {
 		return
 	}
 
-	response.Created(c, "Registration successful", gin.H{
+	response.Created(c, "Registration successful. Please check your email to verify your account.", gin.H{
 		"user": gin.H{
 			"id":         user.ID,
 			"first_name": user.FirstName,
@@ -261,6 +261,42 @@ func (h *AuthHandler) ResetPassword(c *gin.Context) {
 	}
 
 	response.OK(c, "Password reset successfully", nil)
+}
+
+// VerifyEmail handles email verification
+func (h *AuthHandler) VerifyEmail(c *gin.Context) {
+	var req request.VerifyEmailRequest
+	if err := c.ShouldBindQuery(&req); err != nil {
+		response.BadRequest(c, "Invalid request. Token and email are required.")
+		return
+	}
+
+	err := h.authService.VerifyEmail(c.Request.Context(), &service.VerifyEmailInput{
+		Email: req.Email,
+		Token: req.Token,
+	})
+	if err != nil {
+		response.Error(c, err)
+		return
+	}
+
+	response.OK(c, "Email verified successfully. You can now log in.", nil)
+}
+
+// ResendVerification handles resending the verification email
+func (h *AuthHandler) ResendVerification(c *gin.Context) {
+	var req request.ResendVerificationRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Invalid request body")
+		return
+	}
+
+	_ = h.authService.ResendVerificationEmail(c.Request.Context(), &service.ResendVerificationEmailInput{
+		Email: req.Email,
+	})
+
+	// Always return success to prevent email enumeration
+	response.OK(c, "If the email exists and is not verified, a verification link has been sent.", nil)
 }
 
 // GoogleAuth initiates Google OAuth flow and redirect to Google OAuth consent screen

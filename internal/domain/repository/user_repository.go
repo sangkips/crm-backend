@@ -53,3 +53,12 @@ type PasswordResetTokenRepository interface {
 	DeleteByEmail(ctx context.Context, email string) error
 	DeleteExpired(ctx context.Context) error
 }
+
+// EmailVerificationTokenRepository defines the interface for email verification token operations
+type EmailVerificationTokenRepository interface {
+	Create(ctx context.Context, token *entity.EmailVerificationToken) error
+	GetByToken(ctx context.Context, token string) (*entity.EmailVerificationToken, error)
+	MarkAsUsed(ctx context.Context, token string) error
+	DeleteByEmail(ctx context.Context, email string) error
+	DeleteExpired(ctx context.Context) error
+}
