@@ -3,6 +3,7 @@ package routes
 import (
 	"time"
 
+	"github.com/getsentry/sentry-go/gin"
 	"github.com/gin-gonic/gin"
 	"github.com/sangkips/investify-api/internal/config"
 	domainRepo "github.com/sangkips/investify-api/internal/domain/repository"
@@ -32,9 +33,10 @@ type Handlers struct {
 
 // Deps holds shared dependencies needed by the routes.
 type Deps struct {
-	JWTManager      *utils.JWTManager
-	Cfg             *config.Config
-	IdempotencyRepo domainRepo.IdempotencyRepository
+	JWTManager       *utils.JWTManager
+	Cfg              *config.Config
+	IdempotencyRepo  domainRepo.IdempotencyRepository
+	GlitchTipEnabled bool // true only after sentry.Init succeeded (Sentry-compatible / GlitchTip DSN)
 }
 
 // Setup creates the Gin router and registers all routes.
@@ -42,7 +44,11 @@ func Setup(h *Handlers, deps *Deps) *gin.Engine {
 	router := gin.New()
 
 	// Global middleware
-	router.Use(gin.Recovery())
+	if deps.GlitchTipEnabled {
+		router.Use(sentrygin.New(sentrygin.Options{Repanic: false}))
+	} else {
+		router.Use(gin.Recovery())
+	}
 	router.Use(middleware.LoggerMiddleware())
 	router.Use(middleware.CORSMiddleware(&deps.Cfg.CORS))
 

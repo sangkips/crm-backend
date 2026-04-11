@@ -2,8 +2,9 @@ package main
 
 import (
 	"log"
-	"os"
+	"time"
 
+	"github.com/getsentry/sentry-go"
 	"github.com/gin-gonic/gin"
 	"github.com/sangkips/investify-api/internal/application/service"
 	"github.com/sangkips/investify-api/internal/config"
@@ -20,6 +21,24 @@ import (
 func main() {
 	// Load configuration
 	cfg := config.Load()
+
+	// GlitchTip is Sentry-protocol compatible; sentry-go sends events to your DSN.
+	glitchTipEnabled := false
+	if cfg.ErrorReporting.DSN != "" {
+		if err := sentry.Init(sentry.ClientOptions{
+			Dsn:              cfg.ErrorReporting.DSN,
+			Environment:      cfg.App.Env,
+			Release:          cfg.ErrorReporting.Release,
+			EnableTracing:    false,
+			TracesSampleRate: 0,
+		}); err != nil {
+			log.Printf("Warning: error reporting (GlitchTip) init failed: %v", err)
+		} else {
+			glitchTipEnabled = true
+			defer sentry.Flush(5 * time.Second)
+			log.Printf("Error reporting enabled (environment=%s)", cfg.App.Env)
+		}
+	}
 
 	// Set Gin mode based on environment
 	if cfg.App.Env == "production" {
@@ -141,9 +160,10 @@ func main() {
 
 	// Setup routes
 	router := routes.Setup(handlers, &routes.Deps{
-		JWTManager:      jwtManager,
-		Cfg:             cfg,
-		IdempotencyRepo: idempotencyRepo,
+		JWTManager:       jwtManager,
+		Cfg:              cfg,
+		IdempotencyRepo:  idempotencyRepo,
+		GlitchTipEnabled: glitchTipEnabled,
 	})
 
 	// Get port from environment or use default
@@ -157,6 +177,5 @@ func main() {
 
 	if err := router.Run(":" + port); err != nil {
 		log.Fatalf("Failed to start server: %v", err)
-		os.Exit(1)
 	}
 }

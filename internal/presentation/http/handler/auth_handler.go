@@ -3,6 +3,7 @@ package handler
 import (
 	"crypto/rand"
 	"encoding/hex"
+	"log"
 	"net/url"
 
 	"github.com/gin-gonic/gin"
@@ -358,6 +359,7 @@ func (h *AuthHandler) GoogleCallback(c *gin.Context) {
 		State: state,
 	})
 	if err != nil {
+		log.Printf("Google OAuth callback authentication failed: %v", err)
 		redirectError("Authentication failed")
 		return
 	}
