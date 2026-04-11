@@ -8,15 +8,23 @@ import (
 )
 
 type Config struct {
-	App       AppConfig
-	Database  DatabaseConfig
-	JWT       JWTConfig
-	Storage   StorageConfig
-	CORS      CORSConfig
-	RateLimit RateLimitConfig
-	Email     EmailConfig
-	OAuth     OAuthConfig
-	Printer   PrinterConfig
+	App            AppConfig
+	Database       DatabaseConfig
+	JWT            JWTConfig
+	Storage        StorageConfig
+	CORS           CORSConfig
+	RateLimit      RateLimitConfig
+	Email          EmailConfig
+	OAuth          OAuthConfig
+	Printer        PrinterConfig
+	ErrorReporting ErrorReportingConfig
+}
+
+// ErrorReportingConfig holds GlitchTip / Sentry-compatible DSN settings.
+// GlitchTip accepts the same DSN format as Sentry; leave DSN empty to disable.
+type ErrorReportingConfig struct {
+	DSN     string
+	Release string
 }
 
 type AppConfig struct {
@@ -127,6 +135,8 @@ func Load() *Config {
 	viper.SetDefault("PRINTER_TYPE", "none")
 	viper.SetDefault("PRINTER_USB_PATH", "/dev/usb/lp0")
 	viper.SetDefault("PRINTER_ADDRESS", "")
+	viper.SetDefault("SENTRY_DSN", "")
+	viper.SetDefault("SENTRY_RELEASE", "")
 
 	return &Config{
 		App: AppConfig{
@@ -183,7 +193,18 @@ func Load() *Config {
 			USBPath: viper.GetString("PRINTER_USB_PATH"),
 			Address: viper.GetString("PRINTER_ADDRESS"),
 		},
+		ErrorReporting: ErrorReportingConfig{
+			DSN:     firstNonEmpty(viper.GetString("SENTRY_DSN"), viper.GetString("GLITCHTIP_DSN")),
+			Release: viper.GetString("SENTRY_RELEASE"),
+		},
 	}
+}
+
+func firstNonEmpty(a, b string) string {
+	if a != "" {
+		return a
+	}
+	return b
 }
 
 func (c *DatabaseConfig) DSN() string {
